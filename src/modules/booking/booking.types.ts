@@ -20,6 +20,13 @@ export interface SeatRow {
   seats: Seat[];
 }
 
+/** Outline of a zone in the venue overview (`VenueMap.viewBox` units). */
+export interface ZoneShape {
+  path: string;
+  labelX: number;
+  labelY: number;
+}
+
 export interface Zone {
   id: string;
   name: string;
@@ -30,12 +37,17 @@ export interface Zone {
   color: string;
   status: ZoneStatus;
   kind: ZoneKind;
+  shape: ZoneShape;
   /** Only for `seated` zones. */
   rows?: SeatRow[];
 }
 
 export interface VenueMap {
   eventId: string;
+  /** SVG viewBox of the overview; the stage sits at the top. */
+  viewBox: string;
+  /** Stage rectangle in `viewBox` units. */
+  stage: { x: number; y: number; width: number; height: number };
   zones: Zone[];
 }
 

@@ -34,7 +34,8 @@ interface BookingState {
   lastOrder: Order | null;
   /** Starts a selection for `eventId`; keeps it if it's the same event. */
   init: (eventId: string, activeZoneId: string | null) => void;
-  setActiveZone: (zoneId: string) => void;
+  /** `null` goes back to the venue overview. */
+  setActiveZone: (zoneId: string | null) => void;
   toggleSeat: (zone: Zone, seat: Seat) => void;
   removeSeat: (zoneId: string, seatId: string) => void;
   setQuantity: (zone: Zone, quantity: number) => void;

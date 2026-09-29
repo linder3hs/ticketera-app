@@ -6,13 +6,12 @@ import { ArrowRight, CalendarPlus, CircleCheck, Download, Mail, QrCode, SearchX,
 
 import { Button } from "@/components/ui/button";
 import { formatEventPrice } from "@/modules/event/event.utils";
-import type { Event } from "@/modules/event/event.types";
 import { useBookingStore } from "@/modules/booking/booking.store";
-import type { Order } from "@/modules/booking/booking.types";
-import { TicketPass, type TicketPassItem } from "@/modules/booking/components/TicketPass";
+import { TicketPass } from "@/modules/booking/components/TicketPass";
+import { downloadIcs, downloadTicketsPdf, getOrderTickets, type ExportEvent } from "@/modules/booking/ticket-export";
 
 interface OrderConfirmationProps {
-  event: Pick<Event, "id" | "title" | "category" | "date" | "venue" | "city" | "imageUrl">;
+  event: ExportEvent & { id: string; imageUrl: string };
 }
 
 const NEXT_STEPS = [
@@ -24,22 +23,11 @@ const NEXT_STEPS = [
 const SECONDARY_BUTTON_CLASS =
   "h-[50px] cursor-pointer gap-2 rounded-[14px] border-[1.5px] border-zinc-300 bg-background px-5 text-sm font-medium md:h-[54px] md:rounded-2xl md:text-[15px]";
 
-/** One pass per ticket: a seat each in numbered zones, `quantity` passes otherwise. */
-function toTickets(order: Order): TicketPassItem[] {
-  const orderNumber = Number(order.id.replace(/\D/g, "")) || 1;
-  return order.lines
-    .flatMap((line) =>
-      line.seats.length > 0
-        ? line.seats.map((seat) => ({ zoneName: line.zoneName, seatLabel: `Fila ${seat.row} · ${seat.number}` }))
-        : Array.from({ length: line.quantity }, () => ({ zoneName: line.zoneName })),
-    )
-    .map((ticket, index) => ({ ...ticket, seed: orderNumber * 31 + index }));
-}
-
 /** Step 3: the paid order from the store, with its tickets and what's next. */
 export function OrderConfirmation({ event }: OrderConfirmationProps) {
   const order = useBookingStore((state) => state.lastOrder);
   const [index, setIndex] = useState(0);
+  const [isPdfLoading, setIsPdfLoading] = useState(false);
 
   if (!order || order.eventId !== event.id) {
     return (
@@ -61,7 +49,7 @@ export function OrderConfirmation({ event }: OrderConfirmationProps) {
     );
   }
 
-  const tickets = toTickets(order);
+  const tickets = getOrderTickets(order);
   const current = tickets[Math.min(index, tickets.length - 1)];
 
   return (
@@ -96,14 +84,26 @@ export function OrderConfirmation({ event }: OrderConfirmationProps) {
           Ver mis entradas
           <ArrowRight className="size-[18px]" aria-hidden="true" />
         </Button>
-        <Button variant="outline" className={SECONDARY_BUTTON_CLASS}>
+        <Button variant="outline" className={SECONDARY_BUTTON_CLASS} onClick={() => downloadIcs(event, order)}>
           <CalendarPlus className="size-[18px]" aria-hidden="true" />
           <span className="md:hidden">Calendario</span>
           <span className="hidden md:inline">Agregar al calendario</span>
         </Button>
-        <Button variant="outline" className={SECONDARY_BUTTON_CLASS}>
+        <Button
+          variant="outline"
+          className={SECONDARY_BUTTON_CLASS}
+          disabled={isPdfLoading}
+          onClick={async () => {
+            setIsPdfLoading(true);
+            try {
+              await downloadTicketsPdf(event, order);
+            } finally {
+              setIsPdfLoading(false);
+            }
+          }}
+        >
           <Download className="size-[18px]" aria-hidden="true" />
-          Descargar PDF
+          {isPdfLoading ? "Generando…" : "Descargar PDF"}
         </Button>
       </div>
 

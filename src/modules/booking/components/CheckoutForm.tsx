@@ -82,6 +82,9 @@ function Field({
     <div className={cn("flex flex-col gap-2", className)}>
       <label htmlFor={id} className="text-sm font-medium">
         {label}
+        <span aria-hidden="true" className="ml-0.5 text-destructive">
+          *
+        </span>
       </label>
       {children}
       {error && (
@@ -192,6 +195,7 @@ export function CheckoutForm({ event, zones }: CheckoutFormProps) {
     return {
       id: field,
       name: field,
+      "aria-required": true,
       "aria-invalid": errors[field] ? true : undefined,
       "aria-describedby": errors[field] ? `${field}-error` : undefined,
     };
@@ -263,7 +267,11 @@ export function CheckoutForm({ event, zones }: CheckoutFormProps) {
             <div className="flex flex-col gap-1">
               <h2 className="text-lg font-semibold lg:text-xl">Datos del comprador</h2>
               <p className="text-[13px] text-muted-foreground lg:text-sm">
-                Enviaremos tus entradas al correo que indiques.
+                Enviaremos tus entradas al correo que indiques. Los campos con{" "}
+                <span aria-hidden="true" className="text-destructive">
+                  *
+                </span>
+                <span className="sr-only">asterisco</span> son obligatorios.
               </p>
             </div>
             <div className="grid gap-4 lg:grid-cols-2 lg:gap-x-5 lg:gap-y-[18px]">

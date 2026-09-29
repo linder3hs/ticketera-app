@@ -20,7 +20,7 @@ export default async function TicketsPage({ params }: PageProps<"/events/[id]/ti
     <div className="flex min-h-full flex-col bg-muted pb-28 lg:pb-0">
       <CheckoutHeader currentStep={1} backHref={`/events/${id}`} backLabel="Volver al evento" />
       <main className="flex-1">
-        <TicketSelection event={event} zones={venue.zones} />
+        <TicketSelection event={event} venue={venue} />
       </main>
     </div>
   );

@@ -1,6 +1,6 @@
 # Rediseño de la selección de entradas y ajustes de checkout/confirmación
 
-Estado: borrador
+Estado: aprobada
 
 ## Objetivo
 

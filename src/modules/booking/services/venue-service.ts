@@ -5,6 +5,7 @@ import type {
   SeatRow,
   VenueMap,
   Zone,
+  ZoneShape,
   ZoneStatus,
 } from "@/modules/booking/booking.types";
 
@@ -21,13 +22,38 @@ interface ZoneTemplate {
   /** Price relative to the event's `priceFrom` (the cheapest zone is 1). */
   priceFactor: number;
   status: ZoneStatus;
+  shape: ZoneShape;
   /** Numbered stands only: row count and seats in the front row. */
   seating?: { rows: number; frontRowSeats: number };
 }
 
 const ZONE_TEMPLATES: ZoneTemplate[] = [
-  { id: "vip", name: "Campo VIP", shortName: "VIP", color: "#D4D4D8", priceFactor: 2.76, status: "sold-out" },
-  { id: "general", name: "Campo General", shortName: "General", color: "#4F46E5", priceFactor: 1.8, status: "available" },
+  {
+    id: "vip",
+    name: "Campo VIP",
+    shortName: "VIP",
+    color: "#D4D4D8",
+    priceFactor: 2.76,
+    status: "sold-out",
+    shape: {
+      path: "M272 96 H528 Q548 96 548 116 V170 Q548 188 528 188 H272 Q252 188 252 170 V116 Q252 96 272 96 Z",
+      labelX: 400,
+      labelY: 142,
+    },
+  },
+  {
+    id: "general",
+    name: "Campo General",
+    shortName: "General",
+    color: "#4F46E5",
+    priceFactor: 1.8,
+    status: "available",
+    shape: {
+      path: "M244 202 H556 Q576 202 576 222 V352 Q576 372 556 372 H244 Q224 372 224 352 V222 Q224 202 244 202 Z",
+      labelX: 400,
+      labelY: 287,
+    },
+  },
   {
     id: "occidente",
     name: "Tribuna Occidente",
@@ -35,6 +61,11 @@ const ZONE_TEMPLATES: ZoneTemplate[] = [
     color: "#818CF8",
     priceFactor: 1.52,
     status: "last-tickets",
+    shape: {
+      path: "M58 64 L180 92 Q164 236 184 384 L86 430 Q30 250 58 64 Z",
+      labelX: 118,
+      labelY: 246,
+    },
     seating: { rows: 10, frontRowSeats: 16 },
   },
   {
@@ -44,6 +75,11 @@ const ZONE_TEMPLATES: ZoneTemplate[] = [
     color: "#A5B4FC",
     priceFactor: 1.28,
     status: "available",
+    shape: {
+      path: "M742 64 L620 92 Q636 236 616 384 L714 430 Q770 250 742 64 Z",
+      labelX: 682,
+      labelY: 246,
+    },
     seating: { rows: 10, frontRowSeats: 16 },
   },
   {
@@ -53,6 +89,11 @@ const ZONE_TEMPLATES: ZoneTemplate[] = [
     color: "#C7D2FE",
     priceFactor: 1,
     status: "available",
+    shape: {
+      path: "M104 446 L198 398 Q400 452 602 398 L696 446 Q400 548 104 446 Z",
+      labelX: 400,
+      labelY: 470,
+    },
     seating: { rows: 12, frontRowSeats: 20 },
   },
 ];
@@ -133,6 +174,7 @@ function buildZone(event: Pick<Event, "id" | "priceFrom" | "currency" | "status"
     color: template.color,
     status,
     kind: template.seating ? "seated" : "general",
+    shape: template.shape,
     ...(template.seating && { rows: buildRows(event.id, template.id, status, template.seating) }),
   };
 }
@@ -148,6 +190,8 @@ export async function getVenueMap(eventId: string): Promise<VenueMap | undefined
 
   return {
     eventId,
+    viewBox: "0 0 800 540",
+    stage: { x: 290, y: 28, width: 220, height: 46 },
     zones: ZONE_TEMPLATES.map((template) => buildZone(event, template)),
   };
 }

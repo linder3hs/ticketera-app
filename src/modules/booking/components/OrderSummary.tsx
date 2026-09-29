@@ -56,7 +56,7 @@ export function OrderSummary({ checkoutHref, lines, count, total, currency, onRe
 
         {isEmpty ? (
           <p className="rounded-2xl border-[1.5px] border-dashed border-zinc-300 p-5 text-center text-sm leading-normal text-muted-foreground">
-            Todavía no elegiste entradas. Toca una zona del mapa o usa los botones +.
+            Todavía no elegiste entradas. Toca una zona del mapa para empezar.
           </p>
         ) : (
           <ul className="flex flex-col gap-3">

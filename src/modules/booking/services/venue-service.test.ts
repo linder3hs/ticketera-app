@@ -60,6 +60,16 @@ describe("venue-service", () => {
       expect(venue!.zones.every((zone) => zone.status === "sold-out")).toBe(true);
     });
 
+    it("gives every zone an outline for the venue overview", async () => {
+      const venue = await getVenueMap("evt-001");
+      expect(venue!.viewBox).toMatch(/^0 0 \d+ \d+$/);
+      for (const zone of venue!.zones) {
+        expect(zone.shape.path).toMatch(/^M.*Z$/);
+        expect(zone.shape.labelX).toBeGreaterThan(0);
+        expect(zone.shape.labelY).toBeGreaterThan(0);
+      }
+    });
+
     it("returns undefined for an unknown event", async () => {
       expect(await getVenueMap("not-an-event")).toBeUndefined();
     });

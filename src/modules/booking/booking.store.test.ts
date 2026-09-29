@@ -23,6 +23,7 @@ const STAND: Zone = {
   color: "#000",
   status: "available",
   kind: "seated",
+  shape: { path: "M0 0 Z", labelX: 0, labelY: 0 },
   rows: [],
 };
 
