@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { createJSONStorage, persist } from "zustand/middleware";
 
 import type { Order, OrderLine, PaymentMethod, Seat, Zone } from "@/modules/booking/booking.types";
 
@@ -32,6 +33,8 @@ interface BookingState {
   reservationExpiresAt: number | null;
   /** Last paid order, shown by the confirmation page. */
   lastOrder: Order | null;
+  /** Every order paid in this browser, newest first ("Mis entradas"). */
+  orders: Order[];
   /** Starts a selection for `eventId`; keeps it if it's the same event. */
   init: (eventId: string, activeZoneId: string | null) => void;
   /** `null` goes back to the venue overview. */
@@ -48,69 +51,86 @@ interface BookingState {
 
 const EMPTY_SELECTION = { activeZoneId: null, seats: {}, quantities: {}, reservationExpiresAt: null };
 
-export const useBookingStore = create<BookingState>()((set, get) => ({
-  eventId: null,
-  lastOrder: null,
-  ...EMPTY_SELECTION,
+export const useBookingStore = create<BookingState>()(
+  persist(
+    (set, get) => ({
+      eventId: null,
+      lastOrder: null,
+      orders: [],
+      ...EMPTY_SELECTION,
 
-  init: (eventId, activeZoneId) => {
-    if (get().eventId !== eventId) set({ ...EMPTY_SELECTION, eventId, activeZoneId });
-  },
+      init: (eventId, activeZoneId) => {
+        if (get().eventId !== eventId) set({ ...EMPTY_SELECTION, eventId, activeZoneId });
+      },
 
-  setActiveZone: (zoneId) => set({ activeZoneId: zoneId }),
+      setActiveZone: (zoneId) => set({ activeZoneId: zoneId }),
 
-  toggleSeat: (zone, seat) => {
-    if (zone.status === "sold-out" || seat.status === "occupied") return;
+      toggleSeat: (zone, seat) => {
+        if (zone.status === "sold-out" || seat.status === "occupied") return;
 
-    const selected = get().seats[zone.id] ?? [];
-    const isSelected = selected.some((item) => item.id === seat.id);
-    if (!isSelected && selected.length >= MAX_TICKETS_PER_ZONE) return;
+        const selected = get().seats[zone.id] ?? [];
+        const isSelected = selected.some((item) => item.id === seat.id);
+        if (!isSelected && selected.length >= MAX_TICKETS_PER_ZONE) return;
 
-    const next = isSelected ? selected.filter((item) => item.id !== seat.id) : [...selected, seat];
-    set({ seats: { ...get().seats, [zone.id]: next } });
-  },
+        const next = isSelected ? selected.filter((item) => item.id !== seat.id) : [...selected, seat];
+        set({ seats: { ...get().seats, [zone.id]: next } });
+      },
 
-  removeSeat: (zoneId, seatId) => {
-    const selected = get().seats[zoneId] ?? [];
-    set({ seats: { ...get().seats, [zoneId]: selected.filter((seat) => seat.id !== seatId) } });
-  },
+      removeSeat: (zoneId, seatId) => {
+        const selected = get().seats[zoneId] ?? [];
+        set({ seats: { ...get().seats, [zoneId]: selected.filter((seat) => seat.id !== seatId) } });
+      },
 
-  setQuantity: (zone, quantity) => {
-    if (zone.kind !== "general" || zone.status === "sold-out") return;
+      setQuantity: (zone, quantity) => {
+        if (zone.kind !== "general" || zone.status === "sold-out") return;
 
-    const clamped = Math.min(Math.max(quantity, 0), MAX_TICKETS_PER_ZONE);
-    set({ quantities: { ...get().quantities, [zone.id]: clamped } });
-  },
+        const clamped = Math.min(Math.max(quantity, 0), MAX_TICKETS_PER_ZONE);
+        set({ quantities: { ...get().quantities, [zone.id]: clamped } });
+      },
 
-  startReservation: (now = Date.now()) => {
-    if (get().reservationExpiresAt === null) set({ reservationExpiresAt: now + RESERVATION_MS });
-  },
+      startReservation: (now = Date.now()) => {
+        if (get().reservationExpiresAt === null) set({ reservationExpiresAt: now + RESERVATION_MS });
+      },
 
-  confirmOrder: ({ zones, currency, method, buyerName, email }, orderId = createOrderId()) => {
-    const { eventId, activeZoneId } = get();
-    const lines = getOrderLines(zones, get());
-    const order: Order = {
-      id: orderId,
-      eventId: eventId ?? "",
-      lines,
-      ...getOrderTotals(lines),
-      currency,
-      method,
-      buyerName,
-      email,
-    };
-    set({ ...EMPTY_SELECTION, activeZoneId, lastOrder: order });
-    return order;
-  },
+      confirmOrder: ({ zones, currency, method, buyerName, email }, orderId = createOrderId()) => {
+        const { eventId, activeZoneId } = get();
+        const lines = getOrderLines(zones, get());
+        const order: Order = {
+          id: orderId,
+          eventId: eventId ?? "",
+          lines,
+          ...getOrderTotals(lines),
+          currency,
+          method,
+          buyerName,
+          email,
+        };
+        set({ ...EMPTY_SELECTION, activeZoneId, lastOrder: order, orders: [order, ...get().orders] });
+        return order;
+      },
 
-  reset: () => set({ eventId: null, lastOrder: null, ...EMPTY_SELECTION }),
-}));
+      reset: () => set({ eventId: null, lastOrder: null, ...EMPTY_SELECTION }),
+    }),
+    {
+      name: "ticketera-booking",
+      storage: createJSONStorage(() => localStorage),
+      // Loaded after mount (see usePersistHydration) to match the server render.
+      skipHydration: true,
+      partialize: ({ eventId, activeZoneId, seats, quantities, reservationExpiresAt, lastOrder, orders }) => ({
+        eventId,
+        activeZoneId,
+        seats,
+        quantities,
+        reservationExpiresAt,
+        lastOrder,
+        orders,
+      }),
+    },
+  ),
+);
 
 /** Summary lines (one per zone with tickets), in the zones' order. */
-export function getOrderLines(
-  zones: Zone[],
-  selection: Pick<BookingState, "seats" | "quantities">,
-): OrderLine[] {
+export function getOrderLines(zones: Zone[], selection: Pick<BookingState, "seats" | "quantities">): OrderLine[] {
   return zones.flatMap((zone) => {
     const seats = selection.seats[zone.id] ?? [];
     const quantity = zone.kind === "seated" ? seats.length : (selection.quantities[zone.id] ?? 0);
@@ -129,8 +149,8 @@ export function getOrderLines(
 }
 
 export function getOrderTotals(lines: OrderLine[]) {
-  return lines.reduce(
-    (totals, line) => ({ count: totals.count + line.quantity, total: totals.total + line.amount }),
-    { count: 0, total: 0 },
-  );
+  return lines.reduce((totals, line) => ({ count: totals.count + line.quantity, total: totals.total + line.amount }), {
+    count: 0,
+    total: 0,
+  });
 }

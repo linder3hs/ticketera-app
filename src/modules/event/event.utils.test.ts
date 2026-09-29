@@ -40,4 +40,10 @@ describe("formatEventPrice", () => {
     const result = formatEventPrice(150, "USD");
     expect(result).toContain("150");
   });
+
+  it("returns placeholders for empty or invalid dates", () => {
+    const placeholder = { day: "--", month: "---", short: "Fecha por definir", long: "Fecha por definir" };
+    expect(formatEventDateParts("")).toEqual(placeholder);
+    expect(formatEventDateParts("2026-13-45")).toEqual(placeholder);
+  });
 });

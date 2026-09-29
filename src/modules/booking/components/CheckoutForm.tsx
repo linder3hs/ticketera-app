@@ -1,14 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronDown, Lock, Smartphone, Store, TicketX } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 import { formatEventPrice } from "@/modules/event/event.utils";
+import { usePersistHydration } from "@/lib/use-persist-hydration";
 import { getOrderLines, getOrderTotals, useBookingStore } from "@/modules/booking/booking.store";
 import type { PaymentMethod, Zone } from "@/modules/booking/booking.types";
 import { DOCUMENT_TYPES, getCheckoutErrors, type CheckoutField } from "@/modules/booking/checkout.schema";
@@ -65,37 +67,6 @@ const FIELD_ORDER: CheckoutField[] = [
 const FIELD_CLASS = "h-[52px] rounded-[14px] border-zinc-300 bg-background px-4 text-base md:text-[15px]";
 const CARD_CLASS = "flex flex-col gap-4 rounded-[20px] border border-border bg-card px-4 py-5 lg:gap-5 lg:rounded-3xl lg:p-7";
 
-function Field({
-  id,
-  label,
-  error,
-  className,
-  children,
-}: {
-  id: string;
-  label: string;
-  error?: string;
-  className?: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className={cn("flex flex-col gap-2", className)}>
-      <label htmlFor={id} className="text-sm font-medium">
-        {label}
-        <span aria-hidden="true" className="ml-0.5 text-destructive">
-          *
-        </span>
-      </label>
-      {children}
-      {error && (
-        <p id={`${id}-error`} className="text-[13px] font-medium text-destructive">
-          {error}
-        </p>
-      )}
-    </div>
-  );
-}
-
 function PayButton({ label, disabled, className }: { label: string; disabled: boolean; className: string }) {
   return (
     <Button
@@ -139,6 +110,7 @@ function EmptyState({ eventId, title, description }: { eventId: string; title: s
 export function CheckoutForm({ event, zones }: CheckoutFormProps) {
   const router = useRouter();
   const store = useBookingStore();
+  const hydrated = usePersistHydration(useBookingStore);
   const [values, setValues] = useState<Values>(INITIAL_VALUES);
   const [errors, setErrors] = useState<Partial<Record<CheckoutField, string>>>({});
   const [wasSubmitted, setWasSubmitted] = useState(false);
@@ -161,6 +133,7 @@ export function CheckoutForm({ event, zones }: CheckoutFormProps) {
     reset();
   }, [reset]);
 
+  if (!hydrated) return <p className="px-4 py-16 text-center text-muted-foreground">Cargando tu compra…</p>;
   if (isPaid) return <p className="px-4 py-16 text-center text-muted-foreground">Procesando tu pago…</p>;
   if (isExpired) {
     return (
@@ -275,7 +248,7 @@ export function CheckoutForm({ event, zones }: CheckoutFormProps) {
               </p>
             </div>
             <div className="grid gap-4 lg:grid-cols-2 lg:gap-x-5 lg:gap-y-[18px]">
-              <Field id="fullName" label="Nombre completo" error={errors.fullName}>
+              <FormField id="fullName" label="Nombre completo" error={errors.fullName}>
                 <Input
                   {...inputProps("fullName")}
                   autoComplete="name"
@@ -284,8 +257,8 @@ export function CheckoutForm({ event, zones }: CheckoutFormProps) {
                   onChange={(e) => update("fullName", e.target.value)}
                   className={FIELD_CLASS}
                 />
-              </Field>
-              <Field id="email" label="Correo electrónico" error={errors.email}>
+              </FormField>
+              <FormField id="email" label="Correo electrónico" error={errors.email}>
                 <Input
                   {...inputProps("email")}
                   type="email"
@@ -295,8 +268,8 @@ export function CheckoutForm({ event, zones }: CheckoutFormProps) {
                   onChange={(e) => update("email", e.target.value)}
                   className={FIELD_CLASS}
                 />
-              </Field>
-              <Field id="documentNumber" label="Documento de identidad" error={errors.documentNumber}>
+              </FormField>
+              <FormField id="documentNumber" label="Documento de identidad" error={errors.documentNumber}>
                 <div className="flex gap-2">
                   <select
                     aria-label="Tipo de documento"
@@ -320,8 +293,8 @@ export function CheckoutForm({ event, zones }: CheckoutFormProps) {
                     className={FIELD_CLASS}
                   />
                 </div>
-              </Field>
-              <Field id="phone" label="Celular" error={errors.phone}>
+              </FormField>
+              <FormField id="phone" label="Celular" error={errors.phone}>
                 <Input
                   {...inputProps("phone")}
                   type="tel"
@@ -331,7 +304,7 @@ export function CheckoutForm({ event, zones }: CheckoutFormProps) {
                   onChange={(e) => update("phone", e.target.value)}
                   className={FIELD_CLASS}
                 />
-              </Field>
+              </FormField>
             </div>
           </section>
 
@@ -341,7 +314,7 @@ export function CheckoutForm({ event, zones }: CheckoutFormProps) {
 
             {values.method === "card" && (
               <div className="grid grid-cols-2 gap-3 gap-y-4 lg:grid-cols-4 lg:gap-x-5 lg:gap-y-[18px]">
-                <Field id="cardNumber" label="Número de tarjeta" error={errors.cardNumber} className="col-span-2">
+                <FormField id="cardNumber" label="Número de tarjeta" error={errors.cardNumber} className="col-span-2">
                   <Input
                     {...inputProps("cardNumber")}
                     inputMode="numeric"
@@ -351,8 +324,8 @@ export function CheckoutForm({ event, zones }: CheckoutFormProps) {
                     onChange={(e) => update("cardNumber", e.target.value)}
                     className={FIELD_CLASS}
                   />
-                </Field>
-                <Field id="cardExpiry" label="Vencimiento" error={errors.cardExpiry}>
+                </FormField>
+                <FormField id="cardExpiry" label="Vencimiento" error={errors.cardExpiry}>
                   <Input
                     {...inputProps("cardExpiry")}
                     autoComplete="cc-exp"
@@ -361,8 +334,8 @@ export function CheckoutForm({ event, zones }: CheckoutFormProps) {
                     onChange={(e) => update("cardExpiry", e.target.value)}
                     className={FIELD_CLASS}
                   />
-                </Field>
-                <Field id="cardCvv" label="CVV" error={errors.cardCvv}>
+                </FormField>
+                <FormField id="cardCvv" label="CVV" error={errors.cardCvv}>
                   <Input
                     {...inputProps("cardCvv")}
                     inputMode="numeric"
@@ -372,8 +345,8 @@ export function CheckoutForm({ event, zones }: CheckoutFormProps) {
                     onChange={(e) => update("cardCvv", e.target.value)}
                     className={FIELD_CLASS}
                   />
-                </Field>
-                <Field id="cardName" label="Nombre en la tarjeta" error={errors.cardName} className="col-span-2 lg:col-span-4">
+                </FormField>
+                <FormField id="cardName" label="Nombre en la tarjeta" error={errors.cardName} className="col-span-2 lg:col-span-4">
                   <Input
                     {...inputProps("cardName")}
                     autoComplete="cc-name"
@@ -382,7 +355,7 @@ export function CheckoutForm({ event, zones }: CheckoutFormProps) {
                     onChange={(e) => update("cardName", e.target.value)}
                     className={FIELD_CLASS}
                   />
-                </Field>
+                </FormField>
               </div>
             )}
             {values.method !== "card" && (

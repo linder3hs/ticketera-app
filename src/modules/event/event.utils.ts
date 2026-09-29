@@ -23,9 +23,14 @@ function formatPart(isoDate: string, options: Intl.DateTimeFormatOptions) {
 /**
  * Splits an event's ISO date into the pieces the UI shows: the date chip
  * (`day` "05", `month` "OCT"), a compact label ("lun 5 oct") and a long one
- * ("lunes 5 de octubre").
+ * ("lunes 5 de octubre"). Invalid or empty dates give placeholders.
  */
 export function formatEventDateParts(isoDate: string) {
+  // Unfilled dates (e.g. the create-event preview) get placeholders.
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(isoDate) || Number.isNaN(new Date(isoDate).getTime())) {
+    return { day: "--", month: "---", short: "Fecha por definir", long: "Fecha por definir" };
+  }
+
   const day = formatPart(isoDate, { day: "numeric" });
   const month = formatPart(isoDate, { month: "short" });
 

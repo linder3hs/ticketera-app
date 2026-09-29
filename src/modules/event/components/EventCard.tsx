@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Calendar, MapPin } from "lucide-react";
+import { Calendar, ImageIcon, MapPin } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { EventStatusBadge } from "@/modules/event/components/EventStatusBadge";
@@ -12,6 +12,8 @@ import type { Event } from "@/modules/event/event.types";
 
 interface EventCardProps {
   event: Event;
+  /** Create-event preview: no link, and the image may be a local data URL or missing. */
+  preview?: boolean;
 }
 
 // Half-circle cut-outs of the ticket perforation; they take the section's
@@ -23,20 +25,27 @@ const NOTCH_CLASS = "absolute size-5 rounded-full border border-border bg-muted"
  * perforated stub from `sm` up. The title link is stretched over the whole
  * card, so any click opens the event detail with a single tab stop.
  */
-export function EventCard({ event }: EventCardProps) {
+export function EventCard({ event, preview = false }: EventCardProps) {
   const date = formatEventDateParts(event.date);
   const isSoldOut = event.status === "sold-out";
 
   return (
     <article className="relative flex overflow-hidden rounded-[20px] border border-border bg-card transition duration-300 hover:shadow-[0_20px_40px_-20px_rgba(24,24,27,0.35)] focus-within:ring-3 focus-within:ring-ring/50 motion-safe:hover:-translate-y-1 sm:flex-col sm:rounded-[22px]">
       <div className="relative w-[108px] shrink-0 bg-zinc-200 sm:h-[184px] sm:w-full">
-        <Image
-          src={event.imageUrl}
-          alt={event.imageAlt}
-          fill
-          sizes="(min-width: 1024px) 300px, (min-width: 640px) 50vw, 108px"
-          className="object-cover"
-        />
+        {event.imageUrl ? (
+          <Image
+            src={event.imageUrl}
+            alt={event.imageAlt}
+            fill
+            sizes="(min-width: 1024px) 300px, (min-width: 640px) 50vw, 108px"
+            className="object-cover"
+            unoptimized={event.imageUrl.startsWith("data:")}
+          />
+        ) : (
+          <span className="absolute inset-0 flex items-center justify-center text-zinc-400">
+            <ImageIcon className="size-8" aria-hidden="true" />
+          </span>
+        )}
         <span className="absolute top-2 left-2 flex w-11 flex-col items-center rounded-[11px] bg-white py-1 shadow-[0_4px_14px_-6px_rgba(0,0,0,0.35)] sm:top-3 sm:left-3 sm:w-14 sm:rounded-[14px] sm:py-1.5">
           <span className="text-[10px] font-bold tracking-widest text-primary sm:text-[11px]">
             {date.month}
@@ -63,12 +72,16 @@ export function EventCard({ event }: EventCardProps) {
             <EventStatusBadge status={event.status} className="font-semibold sm:hidden" />
           </div>
           <h3 className="line-clamp-2 text-[15px] leading-snug font-semibold sm:min-h-[46px] sm:text-[17px]">
-            <Link
-              href={`/events/${event.id}`}
-              className="outline-none after:absolute after:inset-0 after:content-['']"
-            >
-              {event.title}
-            </Link>
+            {preview ? (
+              event.title
+            ) : (
+              <Link
+                href={`/events/${event.id}`}
+                className="outline-none after:absolute after:inset-0 after:content-['']"
+              >
+                {event.title}
+              </Link>
+            )}
           </h3>
           <p className="flex items-center gap-2 text-xs text-muted-foreground sm:text-sm">
             <MapPin className="hidden size-4 shrink-0 sm:block" aria-hidden="true" />

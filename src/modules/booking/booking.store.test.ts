@@ -35,6 +35,7 @@ const store = () => useBookingStore.getState();
 describe("booking.store", () => {
   beforeEach(() => {
     store().reset();
+    useBookingStore.setState({ orders: [] });
     store().init("evt-001", "field");
   });
 
@@ -157,6 +158,7 @@ describe("booking.store", () => {
       });
       expect(order.lines.map((line) => line.zoneId)).toEqual(["field", "stand"]);
       expect(store().lastOrder).toEqual(order);
+      expect(store().orders).toEqual([order]);
       expect(store()).toMatchObject({ seats: {}, quantities: {}, reservationExpiresAt: null, eventId: "evt-001" });
     });
 

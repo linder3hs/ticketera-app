@@ -7,6 +7,7 @@ import { ArrowLeft } from "lucide-react";
 
 import { formatEventDateParts } from "@/modules/event/event.utils";
 import type { Event } from "@/modules/event/event.types";
+import { usePersistHydration } from "@/lib/use-persist-hydration";
 import { getOrderLines, getOrderTotals, useBookingStore } from "@/modules/booking/booking.store";
 import type { Seat, VenueMap } from "@/modules/booking/booking.types";
 import { OrderSummary } from "@/modules/booking/components/OrderSummary";
@@ -24,16 +25,18 @@ const NO_QUANTITIES: Record<string, number> = {};
 export function TicketSelection({ event, venue }: TicketSelectionProps) {
   const { zones } = venue;
   const store = useBookingStore();
+  const hydrated = usePersistHydration(useBookingStore);
   // Until `init` runs, the store may still hold another event's selection.
-  const isCurrent = store.eventId === event.id;
+  const isCurrent = hydrated && store.eventId === event.id;
   const seats = isCurrent ? store.seats : NO_SEATS;
   const quantities = isCurrent ? store.quantities : NO_QUANTITIES;
   const activeZoneId = isCurrent ? store.activeZoneId : null;
   const { init } = store;
 
   useEffect(() => {
-    init(event.id, null);
-  }, [init, event.id]);
+    // Writing before the saved selection loads would overwrite it.
+    if (hydrated) init(event.id, null);
+  }, [hydrated, init, event.id]);
 
   const lines = useMemo(() => getOrderLines(zones, { seats, quantities }), [zones, seats, quantities]);
   const { count, total } = getOrderTotals(lines);

@@ -4,8 +4,10 @@ import { useState } from "react";
 import Link from "next/link";
 import { ArrowRight, CalendarPlus, CircleCheck, Download, Mail, QrCode, SearchX, Ticket } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { formatEventPrice } from "@/modules/event/event.utils";
+import { usePersistHydration } from "@/lib/use-persist-hydration";
 import { useBookingStore } from "@/modules/booking/booking.store";
 import { TicketPass } from "@/modules/booking/components/TicketPass";
 import { downloadIcs, downloadTicketsPdf, getOrderTickets, type ExportEvent } from "@/modules/booking/ticket-export";
@@ -26,8 +28,11 @@ const SECONDARY_BUTTON_CLASS =
 /** Step 3: the paid order from the store, with its tickets and what's next. */
 export function OrderConfirmation({ event }: OrderConfirmationProps) {
   const order = useBookingStore((state) => state.lastOrder);
+  const hydrated = usePersistHydration(useBookingStore);
   const [index, setIndex] = useState(0);
   const [isPdfLoading, setIsPdfLoading] = useState(false);
+
+  if (!hydrated) return <p className="px-4 py-16 text-center text-muted-foreground">Cargando tu compra…</p>;
 
   if (!order || order.eventId !== event.id) {
     return (
@@ -79,11 +84,13 @@ export function OrderConfirmation({ event }: OrderConfirmationProps) {
       />
 
       <div className="grid w-full max-w-[880px] grid-cols-2 gap-2.5 md:flex md:w-auto md:justify-center md:gap-3">
-        {/* Visual only until "Mis entradas" exists. */}
-        <Button className="col-span-2 h-[54px] cursor-pointer gap-2 rounded-2xl px-6 text-base font-semibold">
+        <Link
+          href="/my-tickets"
+          className={cn(buttonVariants(), "col-span-2 h-[54px] gap-2 rounded-2xl px-6 text-base font-semibold")}
+        >
           Ver mis entradas
           <ArrowRight className="size-[18px]" aria-hidden="true" />
-        </Button>
+        </Link>
         <Button variant="outline" className={SECONDARY_BUTTON_CLASS} onClick={() => downloadIcs(event, order)}>
           <CalendarPlus className="size-[18px]" aria-hidden="true" />
           <span className="md:hidden">Calendario</span>

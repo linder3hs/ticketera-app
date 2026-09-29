@@ -1,6 +1,6 @@
 # Login/registro, Mis entradas, panel de organizador y crear evento (mock data)
 
-Estado: borrador
+Estado: aprobada
 
 ## Objetivo
 
@@ -53,7 +53,14 @@ Con esto se completan todas las vistas del diseño. Sigue `docs/design/design-sy
   - Autenticación real: ni OAuth de Google (requiere Client ID, pantalla de consentimiento y backend o Auth.js), ni recuperación de contraseña, ni permisos por rol. El panel no se bloquea sin sesión.
   - Subida real de imágenes (la vista previa usa `URL.createObjectURL`) ni publicación en el catálogo público: los eventos creados viven solo en el panel.
   - Pantallas "Mis eventos", "Ventas", "Configuración" y "Ver ventas" (links visuales).
-  - Persistencia (ver preguntas abiertas).
+  - Sincronización entre pestañas o dispositivos: la persistencia es local al navegador.
+
+## Persistencia (decisión del humano al aprobar)
+
+- Los stores `auth`, `booking` (selección, reserva, último pedido y `orders`) y `organizer` (eventos creados) se guardan en `localStorage` con `persist` de zustand (`skipHydration: true`).
+- `src/lib/use-persist-hydration.ts` rehidrata el store en el cliente después de montar y devuelve `hydrated`. Así el primer render coincide con el del servidor (sin errores de hidratación).
+- Hasta rehidratar, los componentes que leen estos stores muestran un estado de carga y no escriben en el store.
+- Efecto colateral: la selección de entradas, la reserva y la confirmación también sobreviven a un recargo de página.
 
 ## Reutilizar
 
@@ -65,6 +72,11 @@ Con esto se completan todas las vistas del diseño. Sigue `docs/design/design-sy
 - shadcn: `button`, `input`, `select`, `sheet`, `popover`, `badge`.
 
 ## Archivos
+
+**T0 (persistencia):**
+- `src/lib/use-persist-hydration.ts` (nuevo)
+- `src/modules/booking/booking.store.ts` (modificado — `persist`)
+- `src/modules/booking/components/{TicketSelection,CheckoutForm,OrderConfirmation}.tsx` (modificados — esperan la rehidratación)
 
 **T1 (auth):**
 - `src/components/ui/form-field.tsx` (nuevo — label con `*`, error y `aria-describedby`)
@@ -162,7 +174,6 @@ Con esto se completan todas las vistas del diseño. Sigue `docs/design/design-sy
 
 ## Preguntas abiertas
 
-- **Persistencia**: por defecto la sesión, los pedidos y los eventos creados viven en memoria, así que se pierden al recargar (igual que el checkout). Alternativa: `persist` de zustand en `localStorage` para que sobrevivan al recargar y el demo sea más creíble. Implica renderizar esas partes después de montar para evitar desajustes de hidratación.
 - **Google real en una fase posterior**: la integración recomendada es Auth.js (`next-auth`) con el provider de Google. Requiere un Client ID y un secreto de Google Cloud y un backend de sesiones. El botón y el store ya quedan con la forma que usaría (`provider: "google"`).
 - **Rutas en inglés** (`/login`, `/register`, `/my-tickets`, `/organizer`, `/organizer/events/new`) por la regla de naming, como en las fases anteriores.
 - **Panel sin bloqueo**: `/organizer` es accesible sin sesión, para poder mostrarlo directo.
