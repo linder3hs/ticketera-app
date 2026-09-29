@@ -35,6 +35,9 @@
   --color-secondary: var(--secondary);
   --color-primary-foreground: var(--primary-foreground);
   --color-primary: var(--primary);
+  --color-cta: var(--cta);
+  --color-cta-foreground: var(--cta-foreground);
+  --color-success: var(--success);
   --color-popover-foreground: var(--popover-foreground);
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
@@ -48,6 +51,20 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+@theme {
+  /* Hero carousel progress bar; duration matches its autoplay interval. */
+  --animate-progress: progress 6s linear forwards;
+
+  @keyframes progress {
+    from {
+      width: 0;
+    }
+    to {
+      width: 100%;
+    }
+  }
+}
+
 :root {
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
@@ -55,12 +72,17 @@
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
+  --primary: #4F46E5;
+  --primary-foreground: #FFFFFF;
+  --cta: #F97316;
+  /* Dark text on orange: white on #F97316 is ~2.8:1, this is ~6:1. */
+  --cta-foreground: #18181B;
+  --success: #16A34A;
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
+  /* Darker than shadcn's 0.556 so secondary text passes 4.5:1 on --muted too. */
+  --muted-foreground: oklch(0.439 0 0);
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
@@ -117,6 +139,28 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+/*
+ * Edge-to-edge horizontal scroller for mobile rows (carousel tabs, category
+ * tiles, filter chips). Bleeds into the container's px-4/md:px-6 gutter;
+ * reset it with lg:mx-0 lg:px-0 where the row becomes a grid.
+ */
+@utility scroll-row {
+  display: flex;
+  margin-inline: -1rem;
+  padding-inline: 1rem;
+  /* Snap to the padded edge, not the scrollport edge. */
+  scroll-padding-inline: 1rem;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+
+  @variant md {
+    margin-inline: -1.5rem;
+    padding-inline: 1.5rem;
+    scroll-padding-inline: 1.5rem;
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -126,5 +170,7 @@
   }
   html {
     @apply font-sans;
+    /* Keeps #anchor targets clear of the sticky header. */
+    scroll-padding-top: 5rem;
   }
 }
