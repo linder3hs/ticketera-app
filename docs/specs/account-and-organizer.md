@@ -22,6 +22,7 @@ Con esto se completan todas las vistas del diseño. Sigue `docs/design/design-sy
     - Formulario de registro: nombre, correo, contraseña con mostrar/ocultar y términos.
     - Validación con `zod`, errores por campo y asteriscos rojos en los campos obligatorios (igual que el checkout).
     - Sesión simulada: cualquier correo y contraseña válidos inician sesión y redirigen a `/my-tickets` (o a `?next=`).
+    - **"Continuar con Google"** en ambas pestañas, arriba del formulario, con el logo oficial de Google (SVG inline) y un separador "o con tu correo". Sigue las pautas de marca de Google: botón blanco con borde, logo a la izquierda y texto "Continuar con Google". Es **simulado**: al hacer clic muestra un estado de carga breve e inicia sesión con una cuenta mock (`Ana Pérez · ana.perez@gmail.com`, `provider: "google"`) y la misma redirección.
   - **Navbar con sesión**:
     - Sin sesión: "Iniciar sesión" lleva a `/login` y "Vender entradas" a `/organizer`.
     - Con sesión: "Mis entradas" (link activo) y un botón de cuenta con menú (nombre, correo, "Panel de organizador", "Cerrar sesión").
@@ -49,7 +50,7 @@ Con esto se completan todas las vistas del diseño. Sigue `docs/design/design-sy
     - Al guardar, el evento se agrega al panel y se vuelve a `/organizer` con un aviso ("Evento publicado" o "Borrador guardado").
     - Asteriscos rojos en los campos obligatorios para publicar.
 - No incluye:
-  - Autenticación real, recuperación de contraseña, login social ni permisos por rol (el panel no se bloquea sin sesión).
+  - Autenticación real: ni OAuth de Google (requiere Client ID, pantalla de consentimiento y backend o Auth.js), ni recuperación de contraseña, ni permisos por rol. El panel no se bloquea sin sesión.
   - Subida real de imágenes (la vista previa usa `URL.createObjectURL`) ni publicación en el catálogo público: los eventos creados viven solo en el panel.
   - Pantallas "Mis eventos", "Ventas", "Configuración" y "Ver ventas" (links visuales).
   - Persistencia (ver preguntas abiertas).
@@ -69,9 +70,10 @@ Con esto se completan todas las vistas del diseño. Sigue `docs/design/design-sy
 - `src/components/ui/form-field.tsx` (nuevo — label con `*`, error y `aria-describedby`)
 - `src/modules/booking/components/CheckoutForm.tsx` (modificado — usa `FormField`)
 - `src/modules/auth/auth.schema.ts`, `auth.schema.test.ts` (nuevos)
-- `src/modules/auth/auth.store.ts`, `auth.store.test.ts` (nuevos — `user`, `login`, `register`, `logout`)
+- `src/modules/auth/auth.store.ts`, `auth.store.test.ts` (nuevos — `user` con `provider: "email" | "google"`, `login`, `register`, `loginWithGoogle`, `logout`)
 - `src/modules/auth/components/AuthScreen.tsx` (nuevo — panel de marca, pestañas y formularios)
 - `src/modules/auth/components/PasswordInput.tsx` (nuevo)
+- `src/modules/auth/components/GoogleSignInButton.tsx` (nuevo — botón con logo, estado de carga y `aria-busy`)
 - `src/modules/auth/components/AccountMenu.tsx` (nuevo)
 - `src/app/login/page.tsx`, `src/app/register/page.tsx` (nuevos)
 - `src/components/Navbar.tsx` (modificado — estado de sesión)
@@ -107,6 +109,7 @@ Con esto se completan todas las vistas del diseño. Sigue `docs/design/design-sy
 
 - AC1: `npx tsc --noEmit`, `npm run lint` y `npx vitest run` pasan. `/login`, `/register`, `/my-tickets`, `/organizer` y `/organizer/events/new` renderizan sin errores de consola ni scroll horizontal entre 375px y 1440px.
 - AC2: Las pestañas de auth son links a `/login` y `/register`, con `aria-current`. Mostrar/ocultar contraseña es un botón con `aria-label` y `aria-pressed`. Enviar con errores marca cada campo (`aria-invalid` y mensaje) y enfoca el primero. Con datos válidos, la sesión inicia y navega a `?next=` o a `/my-tickets`.
+- AC2b: "Continuar con Google" aparece en `/login` y `/register` antes del formulario, con el separador "o con tu correo". Al hacer clic se deshabilita con "Conectando…" (`aria-busy`), inicia la sesión mock con `provider: "google"` y redirige igual que el login por correo. El menú de cuenta muestra "Conectado con Google".
 - AC3: El Navbar refleja la sesión: sin sesión muestra "Iniciar sesión"; con sesión muestra "Mis entradas" y el menú de cuenta, con "Cerrar sesión" que vuelve al estado anónimo. También funciona en el menú móvil.
 - AC4: `/my-tickets` con sesión lista los pedidos mock y los comprados en la sesión en "Próximas", ordenados por fecha. Seleccionar un pedido muestra su tarjeta y anterior/siguiente recorre sus entradas. "Descargar PDF" y "Agregar al calendario" descargan los archivos. "Pasadas (0)" muestra el estado vacío.
 - AC5: Sin sesión, `/my-tickets` muestra el aviso con link a `/login?next=/my-tickets`.
@@ -118,7 +121,7 @@ Con esto se completan todas las vistas del diseño. Sigue `docs/design/design-sy
 ## Tests requeridos
 
 - `auth.schema.test.ts`: login y registro válidos; correo inválido, contraseña de menos de 8 caracteres, nombre vacío y términos sin aceptar.
-- `auth.store.test.ts`: `login` y `register` guardan el usuario (el nombre del login sale del correo); `logout` lo limpia.
+- `auth.store.test.ts`: `login` y `register` guardan el usuario con `provider: "email"` (el nombre del login sale del correo); `loginWithGoogle` guarda la cuenta mock con `provider: "google"`; `logout` lo limpia.
 - `order-service.test.ts`: los pedidos mock referencian eventos existentes; `splitOrdersByDate` separa próximas y pasadas según la fecha de hoy inyectada y ordena por fecha.
 - `booking.store.test.ts`: `confirmOrder` agrega el pedido a `orders`.
 - `organizer-service.test.ts`: `getOrganizerKpis` suma vendidas, ingresos y publicados, ignorando los borradores en ingresos.
@@ -160,6 +163,7 @@ Con esto se completan todas las vistas del diseño. Sigue `docs/design/design-sy
 ## Preguntas abiertas
 
 - **Persistencia**: por defecto la sesión, los pedidos y los eventos creados viven en memoria, así que se pierden al recargar (igual que el checkout). Alternativa: `persist` de zustand en `localStorage` para que sobrevivan al recargar y el demo sea más creíble. Implica renderizar esas partes después de montar para evitar desajustes de hidratación.
+- **Google real en una fase posterior**: la integración recomendada es Auth.js (`next-auth`) con el provider de Google. Requiere un Client ID y un secreto de Google Cloud y un backend de sesiones. El botón y el store ya quedan con la forma que usaría (`provider: "google"`).
 - **Rutas en inglés** (`/login`, `/register`, `/my-tickets`, `/organizer`, `/organizer/events/new`) por la regla de naming, como en las fases anteriores.
 - **Panel sin bloqueo**: `/organizer` es accesible sin sesión, para poder mostrarlo directo.
 - **"Mis entradas" como lista con detalle**: en escritorio es lista con detalle al lado; en móvil, la lista arriba y el detalle debajo del pedido elegido, sin navegar a otra pantalla.
@@ -167,4 +171,4 @@ Con esto se completan todas las vistas del diseño. Sigue `docs/design/design-sy
 ## Próximas fases
 
 - Editar evento, "Ver ventas" con gráficos, "Mis eventos" y "Configuración".
-- Conexión a un backend real (auth, pedidos, eventos).
+- Conexión a un backend real: auth con Google (Auth.js) y correo, pedidos y eventos.
