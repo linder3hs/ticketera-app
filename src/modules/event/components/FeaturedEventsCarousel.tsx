@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import {
   ArrowRight,
   Calendar,
@@ -180,6 +181,8 @@ export function FeaturedEventsCarousel({ events }: FeaturedEventsCarouselProps) 
             <div className="mt-3.5 flex gap-2.5">
               <Button
                 variant="cta"
+                nativeButton={false}
+                render={<Link href={`/events/${current.id}/tickets`} />}
                 className="h-[52px] flex-1 cursor-pointer gap-2 rounded-2xl text-base font-semibold"
               >
                 Comprar entradas
@@ -187,6 +190,8 @@ export function FeaturedEventsCarousel({ events }: FeaturedEventsCarouselProps) 
               </Button>
               <Button
                 variant="outline"
+                nativeButton={false}
+                render={<Link href={`/events/${current.id}`} />}
                 className="hidden h-[52px] cursor-pointer rounded-2xl border-white/40 bg-transparent px-5 text-base text-white hover:bg-white/10 hover:text-white sm:inline-flex"
               >
                 Ver detalles

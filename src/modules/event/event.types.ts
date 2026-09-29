@@ -13,6 +13,15 @@ export interface Event {
   featured: boolean;
 }
 
+/** Fields only the event detail page needs. Times are "HH:mm". */
+export interface EventDetail extends Event {
+  description: string;
+  doorsOpenAt: string;
+  startsAt: string;
+  minAge: number | null;
+  address: string;
+}
+
 export interface EventCategory {
   id: string;
   label: string;

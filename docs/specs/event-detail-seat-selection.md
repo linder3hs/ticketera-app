@@ -1,6 +1,6 @@
 # Detalle de evento y selección de entradas con mapa de asientos (mock data)
 
-Estado: borrador
+Estado: aprobada
 
 ## Objetivo
 
@@ -94,7 +94,7 @@ Evaluadas contra el stack (React 19.2.8, Next 16 App Router, Tailwind v4, sin ba
 - AC7: El mapa de asientos permite zoom y paneo con rueda/arrastre (escritorio) y pinch/arrastre (móvil) vía `react-zoom-pan-pinch`, y tiene botones "Acercar", "Alejar" y "Restablecer" con `aria-label` y ≥44px de área táctil.
 - AC8: Al elegir una zona `general` (campo), se usa el selector +/− de la lista de entradas; − deshabilitado en 0 y + deshabilitado al llegar al máximo.
 - AC9: Máximo 6 entradas por zona (asientos o cantidad); al alcanzarlo, los asientos disponibles restantes de esa zona no se pueden seleccionar y se muestra el aviso "Máximo 6 entradas por zona".
-- AC10: El resumen "Tu compra" lista cada zona (cantidad × zona, y para numeradas "Fila X · asientos N, M"), el total en `S/` con `formatEventPrice`, y "Continuar" (`variant="cta"`) habilitado solo con ≥1 entrada. Vacío: mensaje "Todavía no elegiste entradas…" y botón deshabilitado. Cada asiento se puede quitar desde el resumen.
+- AC10: El resumen "Tu compra" lista cada zona (cantidad × zona, y para numeradas un chip por asiento, p. ej. "A4"), el total en `S/` con `formatEventPrice`, y "Continuar" (`variant="cta"`) habilitado solo con ≥1 entrada. Vacío: mensaje "Todavía no elegiste entradas…" y botón deshabilitado. Cada asiento se puede quitar desde el resumen.
 - AC11: El layout de asientos es determinista: recargar muestra los mismos asientos ocupados y no hay error de hidratación en consola.
 - AC12: Accesibilidad y responsive: sin scroll horizontal de página entre 375px y 1440px (el mapa hace zoom dentro de su contenedor), `focus-visible` visible en todo control, botones solo-icono con `aria-label`, contraste de texto ≥4.5:1.
 

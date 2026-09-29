@@ -1,4 +1,4 @@
-import type { Event, EventCategory } from "@/modules/event/event.types";
+import type { Event, EventCategory, EventDetail } from "@/modules/event/event.types";
 
 /**
  * Mock in-memory data for the event landing page.
@@ -163,6 +163,92 @@ const EVENTS: Event[] = [
   },
 ];
 
+type EventDetailFields = Omit<EventDetail, keyof Event>;
+
+/** Detail-page fields, kept apart so the listing data above stays compact. */
+const EVENT_DETAILS: Record<string, EventDetailFields> = {
+  "evt-001": {
+    description:
+      "Bad Bunny llega a Lima con su gira mundial: un show de más de dos horas con sus grandes éxitos, nuevo material y una producción de escenario 360°. La entrada incluye acceso a la zona elegida y a las áreas de comida del estadio.",
+    doorsOpenAt: "17:00",
+    startsAt: "20:30",
+    minAge: null,
+    address: "Av. José Díaz s/n, Cercado de Lima",
+  },
+  "evt-002": {
+    description:
+      "Dos escenarios y más de 20 bandas de rock y pop latino frente al mar. Un día completo de música con zona de food trucks y activaciones de marcas.",
+    doorsOpenAt: "12:00",
+    startsAt: "13:00",
+    minAge: 16,
+    address: "Circuito de Playas, Costa Verde, Miraflores",
+  },
+  "evt-003": {
+    description:
+      "El clásico del fútbol peruano. Vive el partido más esperado del año en el Monumental con toda la pasión de las dos hinchadas.",
+    doorsOpenAt: "13:00",
+    startsAt: "15:30",
+    minAge: null,
+    address: "Av. Javier Prado Este 7700, Ate",
+  },
+  "evt-004": {
+    description:
+      "Una puesta en escena contemporánea del clásico de Shakespeare, con elenco arequipeño y música original en vivo. Duración aproximada: 1 h 50 min con intermedio.",
+    doorsOpenAt: "19:00",
+    startsAt: "19:30",
+    minAge: 12,
+    address: "Calle Mercaderes 239, Arequipa",
+  },
+  "evt-005": {
+    description:
+      "Juegos, talleres, cuentacuentos y espectáculos para toda la familia durante una tarde al aire libre. Los menores de 3 años no pagan entrada.",
+    doorsOpenAt: "10:00",
+    startsAt: "10:30",
+    minAge: null,
+    address: "Av. Arequipa s/n, Selva Alegre, Arequipa",
+  },
+  "evt-006": {
+    description:
+      "Coldplay vuelve a Madrid con Music of the Spheres: pulseras LED, confeti y un repertorio que recorre toda su carrera.",
+    doorsOpenAt: "18:00",
+    startsAt: "21:00",
+    minAge: null,
+    address: "Av. de Concha Espina 1, Madrid",
+  },
+  "evt-007": {
+    description:
+      "Partido de exhibición de la NBA con jugadores estrella, concurso de triples y show de medio tiempo.",
+    doorsOpenAt: "17:30",
+    startsAt: "19:00",
+    minAge: null,
+    address: "Av. de las Granjas 800, Azcapotzalco, CDMX",
+  },
+  "evt-008": {
+    description:
+      "La edición limeña del festival de música electrónica más grande del mundo, con DJs internacionales y producción de luces y pirotecnia.",
+    doorsOpenAt: "15:00",
+    startsAt: "16:00",
+    minAge: 18,
+    address: "Circuito de Playas, Costa Verde, Magdalena",
+  },
+  "evt-009": {
+    description:
+      "La Orquesta Sinfónica Nacional despide el año con valses, obras de Strauss y un repertorio de música peruana orquestada.",
+    doorsOpenAt: "19:00",
+    startsAt: "20:00",
+    minAge: 6,
+    address: "Av. Javier Prado Este 2225, San Borja",
+  },
+  "evt-010": {
+    description:
+      "Acróbatas, malabaristas y payasos en un espectáculo de dos horas bajo la carpa, pensado para toda la familia.",
+    doorsOpenAt: "15:30",
+    startsAt: "16:00",
+    minAge: null,
+    address: "Av. Javier Prado Este 4200, Santiago de Surco",
+  },
+};
+
 const CATEGORIES: EventCategory[] = [
   { id: "cat-conciertos", label: "Conciertos", icon: "Music" },
   { id: "cat-deportes", label: "Deportes", icon: "Trophy" },
@@ -200,6 +286,29 @@ export async function getUpcomingEvents(categoryId?: string): Promise<Event[]> {
     : EVENTS;
 
   return [...events].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/** Returns an event with its detail-page fields, or `undefined` if unknown. */
+export async function getEventById(id: string): Promise<EventDetail | undefined> {
+  const event = EVENTS.find((item) => item.id === id);
+  const details = EVENT_DETAILS[id];
+
+  return event && details ? { ...event, ...details } : undefined;
+}
+
+/**
+ * Returns up to `limit` events to suggest next to `id`: same category first,
+ * then the rest by date. Never includes the event itself.
+ */
+export async function getRelatedEvents(id: string, limit = 4): Promise<Event[]> {
+  const current = EVENTS.find((event) => event.id === id);
+  const others = EVENTS.filter((event) => event.id !== id).sort((a, b) =>
+    a.date.localeCompare(b.date),
+  );
+  const sameCategory = others.filter((event) => event.category === current?.category);
+  const rest = others.filter((event) => event.category !== current?.category);
+
+  return [...sameCategory, ...rest].slice(0, limit);
 }
 
 /** Returns the list of event categories shown as filter chips. */

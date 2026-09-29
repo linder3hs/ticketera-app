@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   getCategories,
+  getEventById,
   getFeaturedEvents,
+  getRelatedEvents,
   getUpcomingEvents,
 } from "@/modules/event/services/event-service";
 
@@ -73,6 +75,46 @@ describe("event-service", () => {
     it("returns an empty list for a category without events or an unknown id", async () => {
       expect(await getUpcomingEvents("cat-cine")).toEqual([]);
       expect(await getUpcomingEvents("not-a-category")).toEqual([]);
+    });
+  });
+
+  describe("getEventById", () => {
+    it("returns the event with its detail fields", async () => {
+      const event = await getEventById("evt-001");
+      expect(event?.title).toBe("Bad Bunny — World Tour");
+      expect(Object.keys(event ?? {})).toEqual(
+        expect.arrayContaining([
+          ...EVENT_KEYS,
+          "description",
+          "doorsOpenAt",
+          "startsAt",
+          "minAge",
+          "address",
+        ]),
+      );
+    });
+
+    it("has detail fields for every event in the catalog", async () => {
+      for (const { id } of await getUpcomingEvents()) {
+        expect(await getEventById(id)).toBeDefined();
+      }
+    });
+
+    it("returns undefined for an unknown id", async () => {
+      expect(await getEventById("not-an-event")).toBeUndefined();
+    });
+  });
+
+  describe("getRelatedEvents", () => {
+    it("excludes the current event and respects the limit", async () => {
+      const events = await getRelatedEvents("evt-001", 3);
+      expect(events).toHaveLength(3);
+      expect(events.map((event) => event.id)).not.toContain("evt-001");
+    });
+
+    it("lists events of the same category first", async () => {
+      const [first] = await getRelatedEvents("evt-001");
+      expect(first.category).toBe("Conciertos");
     });
   });
 

@@ -1,7 +1,8 @@
 import Image from "next/image";
+import Link from "next/link";
 import { Calendar, MapPin } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { EventStatusBadge } from "@/modules/event/components/EventStatusBadge";
 import {
   formatEventDateParts,
@@ -19,14 +20,15 @@ const NOTCH_CLASS = "absolute size-5 rounded-full border border-border bg-muted"
 
 /**
  * Ticket-style event card: a compact row on phones, a vertical card with a
- * perforated stub from `sm` up.
+ * perforated stub from `sm` up. The title link is stretched over the whole
+ * card, so any click opens the event detail with a single tab stop.
  */
 export function EventCard({ event }: EventCardProps) {
   const date = formatEventDateParts(event.date);
   const isSoldOut = event.status === "sold-out";
 
   return (
-    <article className="flex overflow-hidden rounded-[20px] border border-border bg-card transition duration-300 hover:shadow-[0_20px_40px_-20px_rgba(24,24,27,0.35)] motion-safe:hover:-translate-y-1 sm:flex-col sm:rounded-[22px]">
+    <article className="relative flex overflow-hidden rounded-[20px] border border-border bg-card transition duration-300 hover:shadow-[0_20px_40px_-20px_rgba(24,24,27,0.35)] focus-within:ring-3 focus-within:ring-ring/50 motion-safe:hover:-translate-y-1 sm:flex-col sm:rounded-[22px]">
       <div className="relative w-[108px] shrink-0 bg-zinc-200 sm:h-[184px] sm:w-full">
         <Image
           src={event.imageUrl}
@@ -61,7 +63,12 @@ export function EventCard({ event }: EventCardProps) {
             <EventStatusBadge status={event.status} className="font-semibold sm:hidden" />
           </div>
           <h3 className="line-clamp-2 text-[15px] leading-snug font-semibold sm:min-h-[46px] sm:text-[17px]">
-            {event.title}
+            <Link
+              href={`/events/${event.id}`}
+              className="outline-none after:absolute after:inset-0 after:content-['']"
+            >
+              {event.title}
+            </Link>
           </h3>
           <p className="flex items-center gap-2 text-xs text-muted-foreground sm:text-sm">
             <MapPin className="hidden size-4 shrink-0 sm:block" aria-hidden="true" />
@@ -87,13 +94,16 @@ export function EventCard({ event }: EventCardProps) {
               {formatEventPrice(event.priceFrom, event.currency)}
             </span>
           </p>
-          <Button
-            variant="outline"
-            disabled={isSoldOut}
-            className="h-11 cursor-pointer rounded-xl border-[1.5px] border-foreground px-4 font-semibold disabled:border-transparent disabled:bg-muted disabled:opacity-100"
+          {/* Visual affordance only: the stretched title link handles the click. */}
+          <span
+            aria-hidden="true"
+            className={cn(
+              "flex h-11 items-center rounded-xl border-[1.5px] px-4 text-sm font-semibold whitespace-nowrap",
+              isSoldOut ? "border-transparent bg-muted text-muted-foreground" : "border-foreground",
+            )}
           >
             {isSoldOut ? "Agotado" : "Ver entradas"}
-          </Button>
+          </span>
         </div>
       </div>
     </article>
