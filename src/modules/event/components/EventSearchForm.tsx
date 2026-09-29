@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import { es } from "date-fns/locale";
 import { Search } from "lucide-react";
 
@@ -19,27 +20,54 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { EMPTY_FILTERS, PRICE_RANGES, toSearchHref } from "@/modules/event/event-search";
+import type { EventSearchFilters, PriceRangeKey } from "@/modules/event/event.types";
 
-const PRICE_RANGES = [
+const PRICE_OPTIONS = [
   { value: "any", label: "Cualquier precio" },
-  { value: "under-50", label: "Hasta S/ 50" },
-  { value: "50-150", label: "S/ 50 – 150" },
-  { value: "150-300", label: "S/ 150 – 300" },
-  { value: "over-300", label: "Más de S/ 300" },
+  ...PRICE_RANGES.map((range) => ({ value: range.key, label: range.label })),
 ];
+
+/** "YYYY-MM-DD" of a calendar day, in local time. */
+function toIsoDay(date: Date) {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+function fromIsoDay(value: string | null) {
+  if (!value) return undefined;
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+interface EventSearchFormProps {
+  /** Current filters: the form starts from them and keeps the rest on submit. */
+  filters?: EventSearchFilters;
+}
 
 const FIELD_CLASS =
   "flex flex-col items-start justify-center gap-0.5 rounded-2xl px-4 py-2 text-left";
 const FIELD_LABEL_CLASS = "text-xs font-semibold text-foreground";
 
-export function EventSearchForm() {
-  // Buscador mock: sin acción real todavía (ver docs/specs/landing-hero-topbar-categories.md).
+/** Text, date and price search; submitting opens `/events` with them. */
+export function EventSearchForm({ filters = EMPTY_FILTERS }: EventSearchFormProps) {
+  const router = useRouter();
+  const [query, setQuery] = useState(filters.q);
+  const [date, setDate] = useState<Date | undefined>(fromIsoDay(filters.from));
+  const [price, setPrice] = useState<string>(filters.price ?? "any");
+  const [isDateOpen, setIsDateOpen] = useState(false);
+
   const handleSearchSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    router.push(
+      toSearchHref({
+        ...filters,
+        q: query,
+        from: date ? toIsoDay(date) : null,
+        price: price === "any" ? null : (price as PriceRangeKey),
+      }),
+    );
   };
-
-  const [date, setDate] = useState<Date | undefined>(undefined);
-  const [isDateOpen, setIsDateOpen] = useState(false);
 
   return (
     <form
@@ -51,6 +79,9 @@ export function EventSearchForm() {
         <span className={FIELD_LABEL_CLASS}>Qué quieres ver</span>
         <input
           type="search"
+          name="q"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
           placeholder="Artista, evento o ciudad"
           className="w-full bg-transparent text-[15px] text-foreground placeholder:text-muted-foreground focus:outline-none"
         />
@@ -89,7 +120,7 @@ export function EventSearchForm() {
         </PopoverContent>
       </Popover>
 
-      <Select defaultValue="any" items={PRICE_RANGES}>
+      <Select value={price} onValueChange={(value) => setPrice(value ?? "any")} items={PRICE_OPTIONS}>
         <SelectTrigger
           className={`${FIELD_CLASS} w-full cursor-pointer border-0 hover:bg-muted data-[size=default]:h-auto md:w-40 [&>svg]:hidden`}
         >
@@ -97,7 +128,7 @@ export function EventSearchForm() {
           <SelectValue className="text-[15px] text-muted-foreground" />
         </SelectTrigger>
         <SelectContent>
-          {PRICE_RANGES.map((range) => (
+          {PRICE_OPTIONS.map((range) => (
             <SelectItem key={range.value} value={range.value}>
               {range.label}
             </SelectItem>

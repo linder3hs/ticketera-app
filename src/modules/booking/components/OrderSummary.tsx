@@ -1,11 +1,14 @@
+import Link from "next/link";
 import { ArrowRight, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { formatEventPrice } from "@/modules/event/event.utils";
 import type { OrderLine } from "@/modules/booking/booking.store";
 
 interface OrderSummaryProps {
+  /** Where "Continuar" goes. */
+  checkoutHref: string;
   lines: OrderLine[];
   count: number;
   total: number;
@@ -13,21 +16,22 @@ interface OrderSummaryProps {
   onRemoveSeat: (zoneId: string, seatId: string) => void;
 }
 
-function ContinueButton({ isEmpty, className }: { isEmpty: boolean; className: string }) {
-  // Visual only until the checkout step exists (next phase).
+function ContinueButton({ href, isEmpty, className }: { href: string; isEmpty: boolean; className: string }) {
+  const classes = cn("cursor-pointer gap-2 font-semibold", className);
+
+  if (isEmpty) {
+    return (
+      <Button type="button" disabled className={cn(classes, "bg-zinc-200 text-muted-foreground disabled:opacity-100")}>
+        Continuar
+      </Button>
+    );
+  }
+
   return (
-    <Button
-      type="button"
-      variant="cta"
-      disabled={isEmpty}
-      className={cn(
-        "cursor-pointer gap-2 font-semibold disabled:bg-zinc-200 disabled:text-muted-foreground disabled:opacity-100",
-        className,
-      )}
-    >
+    <Link href={href} className={cn(buttonVariants({ variant: "cta" }), classes)}>
       Continuar
-      {!isEmpty && <ArrowRight className="size-[18px]" aria-hidden="true" />}
-    </Button>
+      <ArrowRight className="size-[18px]" aria-hidden="true" />
+    </Link>
   );
 }
 
@@ -37,7 +41,7 @@ function ContinueButton({ isEmpty, className }: { isEmpty: boolean; className: s
  * bottom of the screen keeps total and button in reach (the page leaves room
  * for it).
  */
-export function OrderSummary({ lines, count, total, currency, onRemoveSeat }: OrderSummaryProps) {
+export function OrderSummary({ checkoutHref, lines, count, total, currency, onRemoveSeat }: OrderSummaryProps) {
   const isEmpty = count === 0;
   const countLabel = count === 1 ? "1 entrada" : `${count} entradas`;
   const totalLabel = formatEventPrice(total, currency);
@@ -96,7 +100,7 @@ export function OrderSummary({ lines, count, total, currency, onRemoveSeat }: Or
           </span>
         </div>
 
-        <ContinueButton isEmpty={isEmpty} className="hidden h-14 rounded-2xl text-base lg:inline-flex" />
+        <ContinueButton href={checkoutHref} isEmpty={isEmpty} className="hidden h-14 rounded-2xl text-base lg:inline-flex" />
       </aside>
 
       <div className="fixed inset-x-0 bottom-0 z-30 flex items-center justify-between gap-3 border-t border-border bg-background px-4 pt-3 pb-5 shadow-[0_-12px_24px_-18px_rgba(24,24,27,0.35)] lg:hidden">
@@ -104,7 +108,7 @@ export function OrderSummary({ lines, count, total, currency, onRemoveSeat }: Or
           <span className="text-xs text-muted-foreground">Total · {countLabel}</span>
           <span className="text-[22px] font-bold tracking-tight tabular-nums">{totalLabel}</span>
         </span>
-        <ContinueButton isEmpty={isEmpty} className="h-[52px] rounded-[15px] px-6 text-[15px]" />
+        <ContinueButton href={checkoutHref} isEmpty={isEmpty} className="h-[52px] rounded-[15px] px-6 text-[15px]" />
       </div>
     </>
   );

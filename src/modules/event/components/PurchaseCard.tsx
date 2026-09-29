@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ArrowRight, Lock } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { TicketTierList } from "@/modules/event/components/TicketTierList";
 import { formatEventPrice } from "@/modules/event/event.utils";
 import type { Event } from "@/modules/event/event.types";
@@ -23,15 +23,13 @@ function BuyButton({ event, label, className }: { event: PurchaseCardProps["even
   }
 
   return (
-    <Button
-      variant="cta"
-      nativeButton={false}
-      render={<Link href={`/events/${event.id}/tickets`} />}
-      className={cn("cursor-pointer gap-2 font-semibold", className)}
+    <Link
+      href={`/events/${event.id}/tickets`}
+      className={cn(buttonVariants({ variant: "cta" }), "cursor-pointer gap-2 font-semibold", className)}
     >
       {label}
       <ArrowRight className="size-[18px]" aria-hidden="true" />
-    </Button>
+    </Link>
   );
 }
 

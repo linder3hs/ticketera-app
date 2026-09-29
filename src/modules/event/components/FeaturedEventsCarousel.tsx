@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { EventStatusBadge } from "@/modules/event/components/EventStatusBadge";
 import {
   formatEventDateParts,
@@ -179,23 +179,19 @@ export function FeaturedEventsCarousel({ events }: FeaturedEventsCarouselProps) 
               </span>
             </p>
             <div className="mt-3.5 flex gap-2.5">
-              <Button
-                variant="cta"
-                nativeButton={false}
-                render={<Link href={`/events/${current.id}/tickets`} />}
-                className="h-[52px] flex-1 cursor-pointer gap-2 rounded-2xl text-base font-semibold"
+              <Link
+                href={`/events/${current.id}/tickets`}
+                className={cn(buttonVariants({ variant: "cta" }), "h-[52px] flex-1 cursor-pointer gap-2 rounded-2xl text-base font-semibold")}
               >
                 Comprar entradas
                 <ArrowRight className="size-[18px]" aria-hidden="true" />
-              </Button>
-              <Button
-                variant="outline"
-                nativeButton={false}
-                render={<Link href={`/events/${current.id}`} />}
-                className="hidden h-[52px] cursor-pointer rounded-2xl border-white/40 bg-transparent px-5 text-base text-white hover:bg-white/10 hover:text-white sm:inline-flex"
+              </Link>
+              <Link
+                href={`/events/${current.id}`}
+                className={cn(buttonVariants({ variant: "outline" }), "hidden h-[52px] cursor-pointer rounded-2xl border-white/40 bg-transparent px-5 text-base text-white hover:bg-white/10 hover:text-white sm:inline-flex")}
               >
                 Ver detalles
-              </Button>
+              </Link>
             </div>
           </div>
         </div>

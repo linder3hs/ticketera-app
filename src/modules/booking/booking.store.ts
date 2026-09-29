@@ -1,8 +1,25 @@
 import { create } from "zustand";
 
-import type { Seat, Zone } from "@/modules/booking/booking.types";
+import type { Order, OrderLine, PaymentMethod, Seat, Zone } from "@/modules/booking/booking.types";
+
+export type { OrderLine };
 
 export const MAX_TICKETS_PER_ZONE = 6;
+/** How long tickets stay reserved once checkout starts. */
+export const RESERVATION_MS = 10 * 60 * 1000;
+
+export interface ConfirmOrderInput {
+  zones: Zone[];
+  currency: string;
+  method: PaymentMethod;
+  buyerName: string;
+  email: string;
+}
+
+/** Mock order number: "TK-" + 5 digits. */
+export function createOrderId(random = Math.random): string {
+  return `TK-${Math.floor(10000 + random() * 90000)}`;
+}
 
 interface BookingState {
   eventId: string | null;
@@ -11,19 +28,28 @@ interface BookingState {
   seats: Record<string, Seat[]>;
   /** Ticket count of each standing zone. */
   quantities: Record<string, number>;
+  /** Epoch ms when the checkout reservation ends; `null` until checkout starts. */
+  reservationExpiresAt: number | null;
+  /** Last paid order, shown by the confirmation page. */
+  lastOrder: Order | null;
   /** Starts a selection for `eventId`; keeps it if it's the same event. */
   init: (eventId: string, activeZoneId: string | null) => void;
   setActiveZone: (zoneId: string) => void;
   toggleSeat: (zone: Zone, seat: Seat) => void;
   removeSeat: (zoneId: string, seatId: string) => void;
   setQuantity: (zone: Zone, quantity: number) => void;
+  /** Starts the reservation countdown unless one is already running. */
+  startReservation: (now?: number) => void;
+  /** Turns the selection into `lastOrder` and clears it. */
+  confirmOrder: (input: ConfirmOrderInput, orderId?: string) => Order;
   reset: () => void;
 }
 
-const EMPTY_SELECTION = { activeZoneId: null, seats: {}, quantities: {} };
+const EMPTY_SELECTION = { activeZoneId: null, seats: {}, quantities: {}, reservationExpiresAt: null };
 
 export const useBookingStore = create<BookingState>()((set, get) => ({
   eventId: null,
+  lastOrder: null,
   ...EMPTY_SELECTION,
 
   init: (eventId, activeZoneId) => {
@@ -55,16 +81,29 @@ export const useBookingStore = create<BookingState>()((set, get) => ({
     set({ quantities: { ...get().quantities, [zone.id]: clamped } });
   },
 
-  reset: () => set({ eventId: null, ...EMPTY_SELECTION }),
-}));
+  startReservation: (now = Date.now()) => {
+    if (get().reservationExpiresAt === null) set({ reservationExpiresAt: now + RESERVATION_MS });
+  },
 
-export interface OrderLine {
-  zoneId: string;
-  zoneName: string;
-  quantity: number;
-  amount: number;
-  seats: Seat[];
-}
+  confirmOrder: ({ zones, currency, method, buyerName, email }, orderId = createOrderId()) => {
+    const { eventId, activeZoneId } = get();
+    const lines = getOrderLines(zones, get());
+    const order: Order = {
+      id: orderId,
+      eventId: eventId ?? "",
+      lines,
+      ...getOrderTotals(lines),
+      currency,
+      method,
+      buyerName,
+      email,
+    };
+    set({ ...EMPTY_SELECTION, activeZoneId, lastOrder: order });
+    return order;
+  },
+
+  reset: () => set({ eventId: null, lastOrder: null, ...EMPTY_SELECTION }),
+}));
 
 /** Summary lines (one per zone with tickets), in the zones' order. */
 export function getOrderLines(

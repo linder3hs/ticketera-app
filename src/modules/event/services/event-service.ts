@@ -1,4 +1,10 @@
-import type { Event, EventCategory, EventDetail } from "@/modules/event/event.types";
+import { filterEvents, sortEvents } from "@/modules/event/event-search";
+import type {
+  Event,
+  EventCategory,
+  EventDetail,
+  EventSearchFilters,
+} from "@/modules/event/event.types";
 
 /**
  * Mock in-memory data for the event landing page.
@@ -309,6 +315,16 @@ export async function getRelatedEvents(id: string, limit = 4): Promise<Event[]> 
   const rest = others.filter((event) => event.category !== current?.category);
 
   return [...sameCategory, ...rest].slice(0, limit);
+}
+
+/** Events matching the search page filters, in the requested order. */
+export async function searchEvents(filters: EventSearchFilters): Promise<Event[]> {
+  return sortEvents(filterEvents(EVENTS, filters, CATEGORIES), filters.sort);
+}
+
+/** Cities with events, alphabetically. */
+export async function getCities(): Promise<string[]> {
+  return [...new Set(EVENTS.map((event) => event.city))].sort((a, b) => a.localeCompare(b, "es"));
 }
 
 /** Returns the list of event categories shown as filter chips. */

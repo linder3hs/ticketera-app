@@ -137,6 +137,7 @@ export function TicketSelection({ event, zones }: TicketSelectionProps) {
         </div>
 
         <OrderSummary
+          checkoutHref={`/events/${event.id}/checkout`}
           lines={lines}
           count={count}
           total={total}

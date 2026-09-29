@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
+import { EMPTY_FILTERS } from "@/modules/event/event-search";
 import {
   getCategories,
+  getCities,
   getEventById,
   getFeaturedEvents,
   getRelatedEvents,
   getUpcomingEvents,
+  searchEvents,
 } from "@/modules/event/services/event-service";
 
 const EVENT_KEYS = [
@@ -115,6 +118,27 @@ describe("event-service", () => {
     it("lists events of the same category first", async () => {
       const [first] = await getRelatedEvents("evt-001");
       expect(first.category).toBe("Conciertos");
+    });
+  });
+
+  describe("searchEvents", () => {
+    it("returns the whole catalog by date without filters", async () => {
+      expect(await searchEvents(EMPTY_FILTERS)).toEqual(await getUpcomingEvents());
+    });
+
+    it("applies filters and the price sort", async () => {
+      const events = await searchEvents({ ...EMPTY_FILTERS, cities: ["Lima"], sort: "price" });
+      expect(events.every((event) => event.city === "Lima")).toBe(true);
+      const prices = events.map((event) => event.priceFrom);
+      expect(prices).toEqual([...prices].sort((a, b) => a - b));
+    });
+  });
+
+  describe("getCities", () => {
+    it("returns unique cities", async () => {
+      const cities = await getCities();
+      expect(cities).toContain("Lima");
+      expect(new Set(cities).size).toBe(cities.length);
     });
   });
 

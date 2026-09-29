@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import {
   MAX_TICKETS_PER_ZONE,
+  RESERVATION_MS,
+  createOrderId,
   getOrderLines,
   getOrderTotals,
   useBookingStore,
@@ -118,6 +120,49 @@ describe("booking.store", () => {
       const lines = getOrderLines([FIELD, STAND], store());
       expect(lines).toEqual([]);
       expect(getOrderTotals(lines)).toEqual({ count: 0, total: 0 });
+    });
+  });
+
+  describe("startReservation", () => {
+    it("starts once and is cleared when the event changes", () => {
+      store().startReservation(1000);
+      store().startReservation(5000);
+      expect(store().reservationExpiresAt).toBe(1000 + RESERVATION_MS);
+
+      store().init("evt-002", null);
+      expect(store().reservationExpiresAt).toBeNull();
+    });
+  });
+
+  describe("confirmOrder", () => {
+    it("saves the order and clears the selection", () => {
+      store().setQuantity(FIELD, 2);
+      store().toggleSeat(STAND, seat("A", 1));
+      store().startReservation(0);
+
+      const order = store().confirmOrder(
+        { zones: [FIELD, STAND], currency: "PEN", method: "yape", buyerName: "Ana Pérez", email: "ana@mail.com" },
+        "TK-12345",
+      );
+
+      expect(order).toMatchObject({
+        id: "TK-12345",
+        eventId: "evt-001",
+        count: 3,
+        total: 300,
+        currency: "PEN",
+        method: "yape",
+        email: "ana@mail.com",
+      });
+      expect(order.lines.map((line) => line.zoneId)).toEqual(["field", "stand"]);
+      expect(store().lastOrder).toEqual(order);
+      expect(store()).toMatchObject({ seats: {}, quantities: {}, reservationExpiresAt: null, eventId: "evt-001" });
+    });
+
+    it("creates order ids with the TK-00000 format", () => {
+      expect(createOrderId()).toMatch(/^TK-\d{5}$/);
+      expect(createOrderId(() => 0)).toBe("TK-10000");
+      expect(createOrderId(() => 0.99999)).toBe("TK-99999");
     });
   });
 });

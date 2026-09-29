@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft, Lock } from "lucide-react";
+import { ArrowLeft, Check, Lock } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/Logo";
@@ -33,18 +33,25 @@ export function CheckoutHeader({ currentStep, backHref, backLabel }: CheckoutHea
             const isCurrent = step === currentStep;
             return (
               <li key={label} className="flex items-center gap-3">
-                {index > 0 && <span aria-hidden="true" className="h-[1.5px] w-10 bg-zinc-300" />}
+                {index > 0 && (
+                  <span
+                    aria-hidden="true"
+                    className={cn("h-[1.5px] w-10", step <= currentStep ? "bg-primary" : "bg-zinc-300")}
+                  />
+                )}
                 <span
                   aria-current={isCurrent ? "step" : undefined}
-                  className={cn("flex items-center gap-2.5", isCurrent ? "font-semibold" : "text-muted-foreground")}
+                  className={cn("flex items-center gap-2.5", isCurrent && "font-semibold", step > currentStep && "text-muted-foreground")}
                 >
                   <span
                     className={cn(
                       "flex size-7 items-center justify-center rounded-full text-[13px]",
-                      step <= currentStep ? "bg-foreground text-background" : "border-[1.5px] border-zinc-300",
+                      step < currentStep && "bg-primary text-primary-foreground",
+                      step === currentStep && "bg-foreground text-background",
+                      step > currentStep && "border-[1.5px] border-zinc-300",
                     )}
                   >
-                    {step}
+                    {step < currentStep ? <Check className="size-[15px] stroke-3" aria-label="Completado" /> : step}
                   </span>
                   {label}
                 </span>

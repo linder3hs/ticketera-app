@@ -38,3 +38,27 @@ export interface VenueMap {
   eventId: string;
   zones: Zone[];
 }
+
+export type PaymentMethod = "card" | "yape" | "cash";
+
+/** One zone of an order: tickets, amount and, for numbered zones, seats. */
+export interface OrderLine {
+  zoneId: string;
+  zoneName: string;
+  quantity: number;
+  amount: number;
+  seats: Seat[];
+}
+
+export interface Order {
+  /** "TK-" + 5 digits. */
+  id: string;
+  eventId: string;
+  lines: OrderLine[];
+  count: number;
+  total: number;
+  currency: string;
+  method: PaymentMethod;
+  buyerName: string;
+  email: string;
+}

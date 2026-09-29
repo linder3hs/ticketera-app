@@ -1,6 +1,6 @@
 # Búsqueda y listado, checkout y confirmación de compra (mock data)
 
-Estado: borrador
+Estado: aprobada
 
 ## Objetivo
 

@@ -14,9 +14,9 @@ import {
 } from "@/components/ui/sheet";
 
 const NAV_LINKS = [
-  { href: "#eventos", label: "Eventos" },
-  { href: "#categorias", label: "Categorías" },
-  { href: "#como-funciona", label: "Cómo funciona" },
+  { href: "/events", label: "Eventos" },
+  { href: "/#categorias", label: "Categorías" },
+  { href: "/#como-funciona", label: "Cómo funciona" },
 ];
 
 export function Navbar() {

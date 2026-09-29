@@ -22,6 +22,24 @@ export interface EventDetail extends Event {
   address: string;
 }
 
+export type PriceRangeKey = "under-50" | "50-150" | "150-300" | "over-300";
+
+export type EventSort = "date" | "price";
+
+/** Search page filters; empty values mean "no filter". */
+export interface EventSearchFilters {
+  q: string;
+  /** Category ids (`cat-conciertos`…). */
+  categories: string[];
+  cities: string[];
+  /** "YYYY-MM". */
+  month: string | null;
+  price: PriceRangeKey | null;
+  /** "YYYY-MM-DD": events on or after this day. */
+  from: string | null;
+  sort: EventSort;
+}
+
 export interface EventCategory {
   id: string;
   label: string;

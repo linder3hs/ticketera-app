@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ArrowRight, Calendar, Clock, MapPin, Share2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { SaveEventButton } from "@/modules/event/components/SaveEventButton";
 import { formatEventDateParts, formatEventPrice } from "@/modules/event/event.utils";
 import type { EventDetail } from "@/modules/event/event.types";
@@ -64,15 +64,13 @@ export function EventDetailHero({ event }: EventDetailHeroProps) {
               Agotado
             </span>
           ) : (
-            <Button
-              variant="cta"
-              nativeButton={false}
-              render={<Link href={`/events/${event.id}/tickets`} />}
-              className="hidden h-[54px] flex-1 cursor-pointer gap-2 rounded-2xl text-base font-semibold lg:inline-flex"
+            <Link
+              href={`/events/${event.id}/tickets`}
+              className={cn(buttonVariants({ variant: "cta" }), "hidden h-[54px] flex-1 cursor-pointer gap-2 rounded-2xl text-base font-semibold lg:inline-flex")}
             >
               Comprar entradas · desde {formatEventPrice(event.priceFrom, event.currency)}
               <ArrowRight className="size-[18px]" aria-hidden="true" />
-            </Button>
+            </Link>
           )}
           <SaveEventButton className={ICON_BUTTON_CLASS} />
           <button type="button" aria-label="Compartir evento" className={cn(ICON_BUTTON_CLASS, "cursor-pointer")}>
