@@ -99,7 +99,7 @@ const ZONE_TEMPLATES: ZoneTemplate[] = [
 ];
 
 /** Share of occupied seats by zone status. */
-const OCCUPANCY: Record<ZoneStatus, number> = {
+export const OCCUPANCY: Record<ZoneStatus, number> = {
   available: 0.35,
   "last-tickets": 0.85,
   "sold-out": 1,
