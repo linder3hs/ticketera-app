@@ -83,3 +83,21 @@ Ninguna spec pasa a desarrollo sin aprobación de un humano. Toda spec nace con 
 - Framework: **Vitest**.
 - Se agregan pruebas unitarias en las secciones que lo requieran: lógica de negocio (`services`, `hooks`, `store`, `schema`) y utilidades compartidas (`src/lib`). No es obligatorio para componentes puramente visuales sin lógica.
 - El archivo de test vive junto al archivo que prueba, con sufijo `.test.ts` (o `.test.tsx` si prueba un componente): `user-service.ts` → `user-service.test.ts`.
+
+## 4. Documentación de arquitectura (consulta bajo demanda)
+
+`docs/architecture/system-design.md` (arquitectura, roles, flujos) y `docs/architecture/erd.md` (modelo de datos) describen el sistema objetivo. **No se leen completos**: solo si la tarea toca uno de estos temas, y solo la sección indicada (Grep del encabezado + Read con `offset`/`limit`).
+
+| Tema de la tarea | Sección |
+|---|---|
+| Decisiones de stack | `system-design.md` §2 |
+| Auth (Clerk + Google), roles, `proxy.ts`, webhooks de Clerk | `system-design.md` §3 (Roles y autorización) y §5.5 |
+| Entornos y variables | `system-design.md` §4 |
+| Reservas, inventario, compra | `system-design.md` §5.1–5.2 |
+| Check-in, reembolsos | `system-design.md` §5.3–5.4 |
+| Organizador y Stripe Connect | `system-design.md` §5.6 |
+| Tablas y columnas | `erd.md` §3 (solo el grupo relevante) |
+| Enums | `erd.md` §2 |
+| Invariantes e índices | `erd.md` §4–5 |
+
+Son documentos de referencia en `Estado: borrador`: ningún agente los modifica. Si la spec aprobada contradice el diseño, manda la spec y la discrepancia se reporta (spec: "Preguntas abiertas"; developer: "Bloqueos"; reviewer: "Notas").
