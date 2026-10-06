@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { es } from "date-fns/locale";
 import { Search } from "lucide-react";
 
+import { fromIsoDay, toIsoDay } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -27,18 +28,6 @@ const PRICE_OPTIONS = [
   { value: "any", label: "Cualquier precio" },
   ...PRICE_RANGES.map((range) => ({ value: range.key, label: range.label })),
 ];
-
-/** "YYYY-MM-DD" of a calendar day, in local time. */
-function toIsoDay(date: Date) {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
-
-function fromIsoDay(value: string | null) {
-  if (!value) return undefined;
-  const [year, month, day] = value.split("-").map(Number);
-  return new Date(year, month - 1, day);
-}
 
 interface EventSearchFormProps {
   /** Current filters: the form starts from them and keeps the rest on submit. */

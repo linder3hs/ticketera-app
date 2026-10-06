@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatEventPrice } from "@/modules/event/event.utils";
 import { usePersistHydration } from "@/lib/use-persist-hydration";
 import { getOrderLines, getOrderTotals, useBookingStore } from "@/modules/booking/booking.store";
@@ -271,19 +272,21 @@ export function CheckoutForm({ event, zones }: CheckoutFormProps) {
               </FormField>
               <FormField id="documentNumber" label="Documento de identidad" error={errors.documentNumber}>
                 <div className="flex gap-2">
-                  <select
-                    aria-label="Tipo de documento"
+                  <Select
                     value={values.documentType}
-                    onChange={(e) => update("documentType", e.target.value as Values["documentType"])}
-                    className={cn(
-                      FIELD_CLASS,
-                      "w-[104px] shrink-0 cursor-pointer border px-2.5 outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 lg:w-[110px]",
-                    )}
+                    onValueChange={(next) => update("documentType", next as Values["documentType"])}
                   >
-                    {DOCUMENT_TYPES.map((type) => (
-                      <option key={type}>{type}</option>
-                    ))}
-                  </select>
+                    <SelectTrigger aria-label="Tipo de documento" className={cn(FIELD_CLASS, "w-[104px] shrink-0 px-2.5 py-0 lg:w-[110px]")}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {DOCUMENT_TYPES.map((type) => (
+                        <SelectItem key={type} value={type}>
+                          {type}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <Input
                     {...inputProps("documentNumber")}
                     inputMode={values.documentType === "DNI" ? "numeric" : "text"}
