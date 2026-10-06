@@ -6,10 +6,13 @@ import { MyTickets } from "@/modules/booking/components/MyTickets";
 import { getMyOrders } from "@/modules/booking/services/order-service";
 import type { EventDetail } from "@/modules/event/event.types";
 import { getEventById, getUpcomingEvents } from "@/modules/event/services/event-service";
+import { requireRole } from "@/modules/user/current-user";
 
 export const metadata: Metadata = { title: "Mis entradas — Ticketera" };
 
 export default async function MyTicketsPage() {
+  // Any signed-in user (customer is the lowest role); signed out goes to /sign-in.
+  const user = await requireRole("customer");
   const [catalog, sampleOrders] = await Promise.all([getUpcomingEvents(), getMyOrders()]);
   const details = await Promise.all(catalog.map((event) => getEventById(event.id)));
   const events = Object.fromEntries(
@@ -20,7 +23,11 @@ export default async function MyTicketsPage() {
     <div className="flex min-h-full flex-col bg-muted">
       <SiteHeader />
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 pt-6 pb-12 md:px-6 lg:pt-10 lg:pb-20">
-        <MyTickets events={events} sampleOrders={sampleOrders} />
+        <MyTickets
+          events={events}
+          sampleOrders={sampleOrders}
+          buyer={{ name: user.fullName ?? "", email: user.email }}
+        />
       </main>
       <Footer />
     </div>

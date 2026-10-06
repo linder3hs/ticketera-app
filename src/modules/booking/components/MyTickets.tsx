@@ -3,13 +3,12 @@
 import { useState, type ReactNode } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { LogIn, Ticket } from "lucide-react";
+import { Ticket } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { usePersistHydration } from "@/lib/use-persist-hydration";
 import { formatEventDateParts } from "@/modules/event/event.utils";
 import type { EventDetail } from "@/modules/event/event.types";
-import { useAuthStore } from "@/modules/auth/auth.store";
 import { useBookingStore } from "@/modules/booking/booking.store";
 import type { Order } from "@/modules/booking/booking.types";
 import { splitOrdersByDate } from "@/modules/booking/services/order-service";
@@ -19,6 +18,8 @@ interface MyTicketsProps {
   /** Every event an order can point to, by id. */
   events: Record<string, EventDetail>;
   sampleOrders: Order[];
+  /** The signed-in user, shown as the buyer of the sample orders. */
+  buyer: { name: string; email: string };
 }
 
 type Tab = "upcoming" | "past";
@@ -47,35 +48,18 @@ const ACTION_CLASS =
  * The signed-in user's orders: sample ones plus those paid in this browser,
  * split into upcoming and past, with the selected order's tickets.
  */
-export function MyTickets({ events, sampleOrders }: MyTicketsProps) {
-  const isAuthReady = usePersistHydration(useAuthStore);
+export function MyTickets({ events, sampleOrders, buyer }: MyTicketsProps) {
   const isBookingReady = usePersistHydration(useBookingStore);
-  const user = useAuthStore((state) => state.user);
   const paidOrders = useBookingStore((state) => state.orders);
   const [tab, setTab] = useState<Tab>("upcoming");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  if (!isAuthReady || !isBookingReady) {
+  if (!isBookingReady) {
     return <p className="py-16 text-center text-muted-foreground">Cargando tus entradas…</p>;
   }
 
-  if (!user) {
-    return (
-      <Notice
-        icon={<LogIn className="size-6" aria-hidden="true" />}
-        title="Inicia sesión para ver tus entradas"
-        text="Tus entradas quedan guardadas en tu cuenta para que las tengas siempre a mano."
-        action={
-          <Link href="/login?next=/my-tickets" className={ACTION_CLASS}>
-            Iniciar sesión
-          </Link>
-        }
-      />
-    );
-  }
-
   // The sample orders belong to whoever is signed in.
-  const orders = [...paidOrders, ...sampleOrders.map((order) => ({ ...order, buyerName: user.name, email: user.email }))];
+  const orders = [...paidOrders, ...sampleOrders.map((order) => ({ ...order, buyerName: buyer.name, email: buyer.email }))];
   const eventDates = Object.fromEntries(Object.values(events).map((event) => [event.id, event.date]));
   const groups = splitOrdersByDate(orders, eventDates, todayIso());
   const list = groups[tab];
