@@ -12,7 +12,7 @@ import type { Event } from "@/modules/event/event.types";
 
 interface EventCardProps {
   event: Event;
-  /** Create-event preview: no link, and the image may be a local data URL or missing. */
+  /** Renders the card without a link to the event detail (create-event preview, or lists whose events have no detail page yet). That is its only effect. */
   preview?: boolean;
 }
 
@@ -22,8 +22,8 @@ const NOTCH_CLASS = "absolute size-5 rounded-full border border-border bg-muted"
 
 /**
  * Ticket-style event card: a compact row on phones, a vertical card with a
- * perforated stub from `sm` up. The title link is stretched over the whole
- * card, so any click opens the event detail with a single tab stop.
+ * perforated stub from `sm` up. Unless `preview`, the title link is stretched
+ * over the whole card, so any click opens the event detail with a single tab stop.
  */
 export function EventCard({ event, preview = false }: EventCardProps) {
   const date = formatEventDateParts(event.date);
@@ -39,7 +39,8 @@ export function EventCard({ event, preview = false }: EventCardProps) {
             fill
             sizes="(min-width: 1024px) 300px, (min-width: 640px) 50vw, 108px"
             className="object-cover"
-            unoptimized={event.imageUrl.startsWith("data:")}
+            // Covers may come from any https host (not just those in `next.config.ts`) or be a data URL.
+            unoptimized
           />
         ) : (
           <span className="absolute inset-0 flex items-center justify-center text-zinc-400">

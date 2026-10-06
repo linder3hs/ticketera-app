@@ -4,7 +4,6 @@ import {
   getCategories,
   getCities,
   getEventById,
-  getFeaturedEvents,
   getRelatedEvents,
   getUpcomingEvents,
   searchEvents,
@@ -28,27 +27,6 @@ const EVENT_KEYS = [
 const VALID_STATUSES = ["available", "last-tickets", "sold-out"];
 
 describe("event-service", () => {
-  describe("getFeaturedEvents", () => {
-    it("returns a non-empty array", async () => {
-      const events = await getFeaturedEvents();
-      expect(Array.isArray(events)).toBe(true);
-      expect(events.length).toBeGreaterThan(0);
-    });
-
-    it("only contains events with featured: true", async () => {
-      const events = await getFeaturedEvents();
-      expect(events.every((event) => event.featured === true)).toBe(true);
-    });
-
-    it("returns events with the expected shape", async () => {
-      const events = await getFeaturedEvents();
-      for (const event of events) {
-        expect(Object.keys(event)).toEqual(expect.arrayContaining(EVENT_KEYS));
-        expect(VALID_STATUSES).toContain(event.status);
-      }
-    });
-  });
-
   describe("getUpcomingEvents", () => {
     it("returns a non-empty array", async () => {
       const events = await getUpcomingEvents();
@@ -70,13 +48,13 @@ describe("event-service", () => {
     });
 
     it("filters by category id", async () => {
-      const events = await getUpcomingEvents("cat-conciertos");
+      const events = await getUpcomingEvents("conciertos");
       expect(events.length).toBeGreaterThan(0);
       expect(events.every((event) => event.category === "Conciertos")).toBe(true);
     });
 
     it("returns an empty list for a category without events or an unknown id", async () => {
-      expect(await getUpcomingEvents("cat-cine")).toEqual([]);
+      expect(await getUpcomingEvents("cine")).toEqual([]);
       expect(await getUpcomingEvents("not-a-category")).toEqual([]);
     });
   });

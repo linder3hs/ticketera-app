@@ -2,6 +2,7 @@ export interface Event {
   id: string;
   title: string;
   category: string;
+  /** Cover URL; `""` means "no cover" (cards and the carousel show a placeholder). */
   imageUrl: string;
   imageAlt: string;
   date: string;
@@ -29,7 +30,7 @@ export type EventSort = "date" | "price";
 /** Search page filters; empty values mean "no filter". */
 export interface EventSearchFilters {
   q: string;
-  /** Category ids (`cat-conciertos`…). */
+  /** Category ids, i.e. slugs (`conciertos`…). */
   categories: string[];
   cities: string[];
   /** "YYYY-MM". */
@@ -41,6 +42,7 @@ export interface EventSearchFilters {
 }
 
 export interface EventCategory {
+  /** The category's slug (`conciertos`…), used in `?categoria=<slug>`. */
   id: string;
   label: string;
   icon: string;

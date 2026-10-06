@@ -8,20 +8,21 @@ import { CategoryCard } from "@/modules/event/components/CategoryCard";
 import { CategoryChips } from "@/modules/event/components/CategoryChips";
 import { EventGrid } from "@/modules/event/components/EventGrid";
 import {
-  getCategories,
-  getFeaturedEvents,
-  getUpcomingEvents,
-} from "@/modules/event/services/event-service";
+  listFeaturedEvents,
+  listPublicCategories,
+  listUpcomingEvents,
+} from "@/modules/event/services/event-public-service";
 
 export default async function Home({ searchParams }: PageProps<"/">) {
+  // Read before any query: `searchParams` is request-time data, so `/` renders per request and the build never hits the DB.
   const { categoria } = await searchParams;
   const [categories, featuredEvents] = await Promise.all([
-    getCategories(),
-    getFeaturedEvents(),
+    listPublicCategories(),
+    listFeaturedEvents(),
   ]);
   // Unknown or repeated `categoria` values are ignored (no filter).
   const selectedCategory = categories.find((category) => category.id === categoria);
-  const upcomingEvents = await getUpcomingEvents(selectedCategory?.id);
+  const upcomingEvents = await listUpcomingEvents(selectedCategory?.id);
 
   return (
     <div className="flex min-h-full flex-col">
@@ -56,8 +57,9 @@ export default async function Home({ searchParams }: PageProps<"/">) {
             </div>
             <div className="mt-5 lg:mt-8">
               <EventGrid
-                events={upcomingEvents.slice(0, 8)}
+                events={upcomingEvents}
                 categoryLabel={selectedCategory?.label}
+                linked={false}
               />
             </div>
           </div>

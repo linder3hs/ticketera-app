@@ -7,7 +7,9 @@ import type {
 } from "@/modules/event/event.types";
 
 /**
- * Mock in-memory data for the event landing page.
+ * Mock in-memory data for the pages that still read it (search, detail,
+ * purchase, my tickets) and for the DB seed. The landing reads the DB
+ * (`event-public-service.ts`).
  *
  * Market assumption (validated with the user via the approved spec
  * `docs/specs/event-landing-page.md`): a mix of Peruvian cities (Lima,
@@ -255,24 +257,17 @@ const EVENT_DETAILS: Record<string, EventDetailFields> = {
   },
 };
 
+/** Ids are the category slugs, the same ones the seed writes to the DB. */
 const CATEGORIES: EventCategory[] = [
-  { id: "cat-conciertos", label: "Conciertos", icon: "Music" },
-  { id: "cat-deportes", label: "Deportes", icon: "Trophy" },
-  { id: "cat-teatro", label: "Teatro", icon: "Theater" },
-  { id: "cat-festivales", label: "Festivales", icon: "PartyPopper" },
-  { id: "cat-familiar", label: "Familiar", icon: "Users" },
-  { id: "cat-cine", label: "Cine", icon: "Film" },
-  { id: "cat-comedia", label: "Comedia", icon: "Mic2" },
-  { id: "cat-arte", label: "Arte y Exposiciones", icon: "Palette" },
+  { id: "conciertos", label: "Conciertos", icon: "Music" },
+  { id: "deportes", label: "Deportes", icon: "Trophy" },
+  { id: "teatro", label: "Teatro", icon: "Theater" },
+  { id: "festivales", label: "Festivales", icon: "PartyPopper" },
+  { id: "familiar", label: "Familiar", icon: "Users" },
+  { id: "cine", label: "Cine", icon: "Film" },
+  { id: "comedia", label: "Comedia", icon: "Mic2" },
+  { id: "arte", label: "Arte y Exposiciones", icon: "Palette" },
 ];
-
-/**
- * Returns only the events flagged as `featured` (for the landing page
- * carousel).
- */
-export async function getFeaturedEvents(): Promise<Event[]> {
-  return EVENTS.filter((event) => event.featured);
-}
 
 /**
  * Returns the events for the "upcoming events" grid, sorted by date

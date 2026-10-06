@@ -22,9 +22,11 @@ export function Hero({ events }: HeroProps) {
         <EventSearchForm />
       </div>
 
-      <div className="mt-6 lg:mt-7">
-        <FeaturedEventsCarousel events={events} />
-      </div>
+      {events.length > 0 && (
+        <div className="mt-6 lg:mt-7">
+          <FeaturedEventsCarousel events={events} />
+        </div>
+      )}
     </section>
   );
 }
