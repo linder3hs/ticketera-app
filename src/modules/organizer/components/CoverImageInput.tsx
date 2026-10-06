@@ -1,116 +1,86 @@
 "use client";
 
-import { useState, type DragEvent } from "react";
-import { ImagePlus, Trash2 } from "lucide-react";
+import { useState } from "react";
+import Image from "next/image";
+import { ImageIcon } from "lucide-react";
 
-import { cn } from "@/lib/utils";
+import { FormField } from "@/components/ui/form-field";
+import { Input } from "@/components/ui/input";
 
 interface CoverImageInputProps {
-  /** Data URL of the chosen image, or "". */
+  id: string;
+  /** Empty or an `https` image URL. */
   value: string;
   onChange: (value: string) => void;
+  error?: string;
+  disabled?: boolean;
+  /** Id of the element that explains why the field is disabled. */
+  reasonId?: string;
 }
 
-const ACCEPTED = ["image/jpeg", "image/png"];
-/** Covers are resized so they fit comfortably in localStorage. */
-const MAX_WIDTH = 1000;
+const FIELD_CLASS = "h-[52px] rounded-[14px] border-zinc-300 bg-background px-4 text-base md:text-[15px]";
 
-/** Reads an image file and returns it as a JPEG data URL at most MAX_WIDTH wide. */
-function resizeImage(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file);
-    const image = new window.Image();
-    image.onload = () => {
-      const scale = Math.min(1, MAX_WIDTH / image.width);
-      const canvas = document.createElement("canvas");
-      canvas.width = Math.round(image.width * scale);
-      canvas.height = Math.round(image.height * scale);
-      canvas.getContext("2d")?.drawImage(image, 0, 0, canvas.width, canvas.height);
-      URL.revokeObjectURL(url);
-      resolve(canvas.toDataURL("image/jpeg", 0.8));
-    };
-    image.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error("No se pudo leer la imagen."));
-    };
-    image.src = url;
-  });
+function isHttpsUrl(value: string): boolean {
+  try {
+    return new URL(value).protocol === "https:";
+  } catch {
+    return false;
+  }
 }
 
-/** Cover picker: drop an image or choose one (JPG/PNG), with a preview. */
-export function CoverImageInput({ value, onChange }: CoverImageInputProps) {
-  const [isDragging, setIsDragging] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function handleFile(file: File | undefined) {
-    if (!file) return;
-    if (!ACCEPTED.includes(file.type)) {
-      setError("Usa una imagen JPG o PNG.");
-      return;
-    }
-    try {
-      onChange(await resizeImage(file));
-      setError(null);
-    } catch {
-      setError("No se pudo leer la imagen. Prueba con otra.");
-    }
-  }
-
-  function handleDrop(event: DragEvent) {
-    event.preventDefault();
-    setIsDragging(false);
-    void handleFile(event.dataTransfer.files[0]);
-  }
-
-  if (value) {
-    return (
-      <div className="flex flex-col gap-3">
-        {/* eslint-disable-next-line @next/next/no-img-element -- local data URL preview */}
-        <img src={value} alt="Portada elegida" className="aspect-video w-full rounded-2xl object-cover" />
-        <button
-          type="button"
-          onClick={() => onChange("")}
-          className="flex h-11 w-fit cursor-pointer items-center gap-2 rounded-xl border-[1.5px] border-zinc-300 px-3.5 text-sm font-semibold hover:bg-muted focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-        >
-          <Trash2 className="size-4" aria-hidden="true" />
-          Quitar imagen
-        </button>
-      </div>
-    );
-  }
+/**
+ * Cover field: an `https` image URL with a preview. Shown `unoptimized` so any
+ * host works without listing it in `next.config.ts`.
+ */
+export function CoverImageInput({ id, value, onChange, error, disabled, reasonId }: CoverImageInputProps) {
+  const url = value.trim();
+  // The URL that failed to load: typing a new one retries.
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+  const canPreview = isHttpsUrl(url);
+  const failed = failedUrl === url;
+  const describedBy = [error ? `${id}-error` : null, reasonId, `${id}-hint`].filter(Boolean).join(" ");
 
   return (
-    <div className="flex flex-col gap-2">
-      <label
-        onDragOver={(event) => {
-          event.preventDefault();
-          setIsDragging(true);
-        }}
-        onDragLeave={() => setIsDragging(false)}
-        onDrop={handleDrop}
-        className={cn(
-          "flex cursor-pointer flex-col items-center gap-2 rounded-2xl border-2 border-dashed px-5 py-10 text-center transition-colors has-focus-visible:ring-3 has-focus-visible:ring-ring/50",
-          isDragging ? "border-primary bg-indigo-50" : "border-zinc-300 bg-zinc-50 hover:border-zinc-400",
-        )}
-      >
-        <span className="flex size-12 items-center justify-center rounded-2xl bg-indigo-50 text-primary">
-          <ImagePlus className="size-6" aria-hidden="true" />
-        </span>
-        <span className="text-[15px] font-semibold">Arrastra una imagen o haz clic para subirla</span>
-        <span className="text-[13px] text-muted-foreground">JPG o PNG, horizontal (16:9)</span>
-        <input
-          type="file"
-          accept={ACCEPTED.join(",")}
-          aria-describedby={error ? "cover-error" : undefined}
-          onChange={(event) => void handleFile(event.target.files?.[0])}
-          className="sr-only"
+    <div className="flex flex-col gap-3">
+      <FormField id={id} label="URL de la imagen" required={false} error={error}>
+        <Input
+          id={id}
+          name={id}
+          type="url"
+          inputMode="url"
+          autoComplete="off"
+          placeholder="https://…"
+          disabled={disabled}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={describedBy}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          className={FIELD_CLASS}
         />
-      </label>
-      {error && (
-        <p id="cover-error" role="alert" className="text-[13px] font-medium text-destructive">
-          {error}
-        </p>
-      )}
+      </FormField>
+      <p id={`${id}-hint`} className="-mt-1 text-[13px] text-muted-foreground">
+        Pega el enlace https de una imagen horizontal (16:9).
+      </p>
+
+      <div className="relative flex aspect-video w-full items-center justify-center overflow-hidden rounded-2xl bg-zinc-100 text-zinc-400">
+        {canPreview && !failed ? (
+          <Image
+            key={url}
+            src={url}
+            alt="Vista previa de la portada"
+            fill
+            unoptimized
+            sizes="(min-width: 1024px) 720px, 100vw"
+            className="object-cover"
+            onError={() => setFailedUrl(url)}
+          />
+        ) : (
+          <span className="flex flex-col items-center gap-2 px-4 text-center text-[13px]">
+            <ImageIcon className="size-8" aria-hidden="true" />
+            {failed ? "No se pudo cargar la imagen. Revisa el enlace." : "La vista previa aparecerá aquí."}
+          </span>
+        )}
+      </div>
     </div>
   );
 }

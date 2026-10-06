@@ -1,28 +1,99 @@
+"use client";
+
+import { useId, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { ImageIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { formatEventDateParts, formatEventPrice } from "@/modules/event/event.utils";
-import type { OrganizerEvent } from "@/modules/organizer/organizer.types";
+import type { EventStatus, ManagedEventRow } from "@/modules/event/event-list.types";
+import { useDeleteEvent, useSetEventStatus } from "@/modules/event/hooks/use-event-mutations";
+import { FeaturedToggle } from "@/modules/organizer/components/FeaturedToggle";
+import { useOrganizerStore } from "@/modules/organizer/organizer.store";
 
 /** Column template shared by the table header and rows (from `xl`). */
-export const EVENT_TABLE_COLUMNS = "xl:grid-cols-[minmax(0,1fr)_120px_220px_130px_120px]";
+export const EVENT_TABLE_COLUMNS = "xl:grid-cols-[minmax(0,1fr)_100px_170px_100px_340px]";
+
+/** Actions that need a confirmation dialog. */
+type ConfirmKind = "unpublish" | "cancel" | "delete";
+type RowAction = ConfirmKind | "publish";
+
+const TARGET_STATUS = { publish: "published", unpublish: "draft", cancel: "cancelled" } as const;
+
+const NOTICE: Record<RowAction, (title: string) => string> = {
+  publish: (title) => `“${title}” se publicó.`,
+  unpublish: (title) => `“${title}” volvió a borrador.`,
+  cancel: (title) => `“${title}” se canceló.`,
+  delete: (title) => `“${title}” se eliminó.`,
+};
+
+const CONFIRM_COPY: Record<
+  ConfirmKind,
+  { heading: (title: string) => string; description: string; confirm: string; destructive: boolean }
+> = {
+  unpublish: {
+    heading: (title) => `¿Despublicar “${title}”?`,
+    description: "El evento dejará de estar a la venta y volverá a borrador. Podrás publicarlo de nuevo.",
+    confirm: "Despublicar",
+    destructive: false,
+  },
+  cancel: {
+    heading: (title) => `¿Cancelar “${title}”?`,
+    description:
+      "El evento quedará cancelado y ya no se podrá editar. Los reembolsos no se procesan automáticamente todavía.",
+    confirm: "Cancelar evento",
+    destructive: true,
+  },
+  delete: {
+    heading: (title) => `¿Eliminar “${title}”?`,
+    description: "Se borrarán el evento y sus zonas. Esta acción no se puede deshacer.",
+    confirm: "Eliminar",
+    destructive: true,
+  },
+};
+
+/** Min 44px touch target on cards (AC14); compact inside the table so the row doesn't overflow. */
+const ACTION_CLASS = "h-11 flex-1 rounded-xl px-3.5 text-sm font-semibold xl:h-8 xl:flex-none xl:rounded-lg xl:px-2.5 xl:text-[13px]";
 
 const number = new Intl.NumberFormat("es-PE");
 
-function Thumbnail({ event }: { event: OrganizerEvent }) {
+export const STATUS_LABEL: Record<EventStatus, string> = {
+  draft: "Borrador",
+  published: "Publicado",
+  cancelled: "Cancelado",
+  finished: "Finalizado",
+};
+
+const STATUS_CLASS: Record<EventStatus, string> = {
+  draft: "bg-muted text-zinc-700",
+  published: "bg-green-100 text-green-800",
+  cancelled: "bg-red-100 text-red-800",
+  finished: "bg-zinc-200 text-zinc-700",
+};
+
+function Thumbnail({ event }: { event: ManagedEventRow }) {
   return (
     <span className="relative flex size-[52px] shrink-0 items-center justify-center overflow-hidden rounded-xl bg-zinc-100 text-zinc-400">
-      {event.imageUrl ? (
+      {event.coverImageUrl ? (
         <Image
-          src={event.imageUrl}
+          src={event.coverImageUrl}
           alt=""
           fill
           sizes="52px"
+          unoptimized
           className="object-cover"
-          // Covers uploaded here are data URLs; next/image can't optimize those.
-          unoptimized={event.imageUrl.startsWith("data:")}
         />
       ) : (
         <ImageIcon className="size-5" aria-hidden="true" />
@@ -31,12 +102,89 @@ function Thumbnail({ event }: { event: OrganizerEvent }) {
   );
 }
 
+interface ConfirmActionDialogProps {
+  kind: ConfirmKind;
+  title: string;
+  pending: boolean;
+  error: string | undefined;
+  onConfirm: () => void;
+  onClose: () => void;
+}
+
+/** Confirmation for a destructive action; the server error stays inside, the dialog only closes on success. */
+function ConfirmActionDialog({ kind, title, pending, error, onConfirm, onClose }: ConfirmActionDialogProps) {
+  const copy = CONFIRM_COPY[kind];
+
+  return (
+    <AlertDialog open onOpenChange={(open) => !open && onClose()}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{copy.heading(title)}</AlertDialogTitle>
+          <AlertDialogDescription>{copy.description}</AlertDialogDescription>
+        </AlertDialogHeader>
+        {error && (
+          <p role="alert" className="text-sm font-medium text-destructive">
+            {error}
+          </p>
+        )}
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={pending}>Volver</AlertDialogCancel>
+          <AlertDialogAction variant={copy.destructive ? "destructive" : "default"} disabled={pending} onClick={onConfirm}>
+            {pending ? "Procesando…" : copy.confirm}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
+interface OrganizerEventRowProps {
+  event: ManagedEventRow;
+  /** Why an editable draft cannot be published (e.g. organizer not approved); shown instead of hiding "Publicar". */
+  publishDeniedReason?: string | null;
+}
+
 /** One organizer event: a card on small screens, a table row from `xl`. */
-export function OrganizerEventRow({ event }: { event: OrganizerEvent }) {
+export function OrganizerEventRow({ event, publishDeniedReason = null }: OrganizerEventRowProps) {
   const isDraft = event.status === "draft";
   const percent = event.capacity > 0 ? Math.round((event.sold / event.capacity) * 100) : 0;
   const date = event.date ? formatEventDateParts(event.date).short : "Sin fecha";
   const place = event.city || "Sin ciudad";
+  const revenue = isDraft ? "—" : formatEventPrice(event.revenueCents / 100, event.currency);
+
+  const { capabilities } = event;
+  const hintId = useId();
+  const [confirming, setConfirming] = useState<ConfirmKind | null>(null);
+  const setStatus = useSetEventStatus();
+  const remove = useDeleteEvent();
+  const setNotice = useOrganizerStore((state) => state.setNotice);
+  const busy = setStatus.isPending || remove.isPending;
+  const showPublishHint = isDraft && capabilities.edit && !capabilities.publish && publishDeniedReason !== null;
+  // Publishing has no dialog: its error shows in the row. The others show it inside their dialog.
+  const error = (confirming === "delete" ? remove : setStatus).error?.message;
+
+  function closeDialog() {
+    setConfirming(null);
+    setStatus.reset();
+    remove.reset();
+  }
+
+  async function run(action: RowAction) {
+    try {
+      if (action === "delete") await remove.mutateAsync({ id: event.id });
+      else await setStatus.mutateAsync({ id: event.id, status: TARGET_STATUS[action] });
+    } catch {
+      return; // the mutation state carries the message
+    }
+    setNotice(NOTICE[action](event.title));
+    closeDialog();
+  }
+
+  function ask(kind: ConfirmKind) {
+    setStatus.reset();
+    remove.reset();
+    setConfirming(kind);
+  }
 
   return (
     <li
@@ -45,24 +193,34 @@ export function OrganizerEventRow({ event }: { event: OrganizerEvent }) {
         EVENT_TABLE_COLUMNS,
       )}
     >
-      <span className="flex min-w-0 items-center gap-3 xl:gap-3.5">
+      <div className="flex min-w-0 items-center gap-3 xl:gap-3.5">
         <Thumbnail event={event} />
-        <span className="flex min-w-0 flex-col gap-0.5">
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="truncate text-[15px] font-semibold">{event.title}</span>
           <span className="text-xs text-muted-foreground xl:text-[13px]">
             {date} · {place}
           </span>
         </span>
-      </span>
+        {capabilities.feature && (
+          <FeaturedToggle
+            compact
+            eventId={event.id}
+            title={event.title}
+            featured={event.featured}
+            published={event.status === "published"}
+            onToggled={setNotice}
+          />
+        )}
+      </div>
 
       <span className="self-start xl:self-auto">
         <span
           className={cn(
             "inline-flex h-[26px] items-center rounded-full px-2.5 text-[11px] font-semibold xl:h-7 xl:px-3 xl:text-xs",
-            isDraft ? "bg-muted text-zinc-700" : "bg-green-100 text-green-800",
+            STATUS_CLASS[event.status],
           )}
         >
-          {isDraft ? "Borrador" : "Publicado"}
+          {STATUS_LABEL[event.status]}
         </span>
       </span>
 
@@ -72,9 +230,7 @@ export function OrganizerEventRow({ event }: { event: OrganizerEvent }) {
             <strong className="font-semibold">{number.format(event.sold)}</strong>
             <span className="text-muted-foreground"> / {number.format(event.capacity)} vendidas</span>
           </span>
-          <strong className="font-semibold xl:hidden">
-            {isDraft ? "—" : formatEventPrice(event.sold * event.priceFrom, event.currency)}
-          </strong>
+          <strong className="font-semibold xl:hidden">{revenue}</strong>
         </span>
         <span
           role="progressbar"
@@ -89,18 +245,97 @@ export function OrganizerEventRow({ event }: { event: OrganizerEvent }) {
       </span>
 
       <span className="hidden text-right text-sm font-semibold tabular-nums xl:block">
-        {isDraft ? "—" : formatEventPrice(event.sold * event.priceFrom, event.currency)}
+        {revenue}
       </span>
 
-      <span className="col-span-2 xl:col-span-1 xl:text-right">
-        {/* "Ver ventas" and editing are next-phase screens: links back to the panel for now. */}
-        <Link
-          href={isDraft ? "/organizer/events/new" : "/organizer"}
-          className="flex h-11 items-center justify-center rounded-xl border-[1.5px] border-zinc-300 px-3.5 text-sm font-semibold hover:bg-muted focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 xl:inline-flex xl:h-10"
-        >
-          {isDraft ? "Editar" : "Ver ventas"}
-        </Link>
-      </span>
+      <div className="col-span-2 flex flex-wrap gap-2 xl:col-span-1 xl:flex-nowrap xl:justify-end xl:gap-1.5">
+        {capabilities.edit && (
+          <Link
+            href={`/organizer/events/${event.id}/edit`}
+            aria-label={`Editar ${event.title}`}
+            className={cn(buttonVariants({ variant: "outline" }), ACTION_CLASS, "inline-flex")}
+          >
+            Editar
+          </Link>
+        )}
+        {capabilities.publish && (
+          <Button
+            variant="default"
+            aria-label={`Publicar ${event.title}`}
+            disabled={busy}
+            className={ACTION_CLASS}
+            onClick={() => run("publish")}
+          >
+            {setStatus.isPending && !confirming ? "Publicando…" : "Publicar"}
+          </Button>
+        )}
+        {showPublishHint && (
+          <Button
+            variant="outline"
+            aria-label={`Publicar ${event.title}`}
+            aria-disabled="true"
+            aria-describedby={hintId}
+            className={cn(ACTION_CLASS, "cursor-not-allowed opacity-60")}
+          >
+            Publicar
+          </Button>
+        )}
+        {capabilities.unpublish && (
+          <Button
+            variant="outline"
+            aria-label={`Despublicar ${event.title}`}
+            disabled={busy}
+            className={ACTION_CLASS}
+            onClick={() => ask("unpublish")}
+          >
+            Despublicar
+          </Button>
+        )}
+        {capabilities.cancel && (
+          <Button
+            variant="destructive"
+            aria-label={`Cancelar ${event.title}`}
+            disabled={busy}
+            className={ACTION_CLASS}
+            onClick={() => ask("cancel")}
+          >
+            Cancelar
+          </Button>
+        )}
+        {capabilities.delete && (
+          <Button
+            variant="destructive"
+            aria-label={`Eliminar ${event.title}`}
+            disabled={busy}
+            className={ACTION_CLASS}
+            onClick={() => ask("delete")}
+          >
+            Eliminar
+          </Button>
+        )}
+      </div>
+
+      {showPublishHint && (
+        <p id={hintId} className="col-span-full text-xs text-muted-foreground xl:text-right">
+          {publishDeniedReason}
+        </p>
+      )}
+      {!confirming && error && (
+        <p role="alert" className="col-span-full text-sm font-medium text-destructive xl:text-right">
+          {error}
+        </p>
+      )}
+
+      {confirming && (
+        <ConfirmActionDialog
+          kind={confirming}
+          title={event.title}
+          pending={busy}
+          error={error}
+          onConfirm={() => run(confirming)}
+          onClose={closeDialog}
+        />
+      )}
     </li>
   );
 }
