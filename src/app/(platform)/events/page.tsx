@@ -9,13 +9,14 @@ import { EventFilters } from "@/modules/event/components/EventFilters";
 import { EventGrid } from "@/modules/event/components/EventGrid";
 import { EventSearchForm } from "@/modules/event/components/EventSearchForm";
 import { SortToggle } from "@/modules/event/components/SortToggle";
-import { getFacetCounts, getMonthOptions, parseSearchParams } from "@/modules/event/event-search";
 import {
-  getCategories,
-  getCities,
-  getUpcomingEvents,
-  searchEvents,
-} from "@/modules/event/services/event-service";
+  getCityOptions,
+  getFacetCounts,
+  getMonthOptions,
+  parseSearchParams,
+  searchCatalog,
+} from "@/modules/event/event-search";
+import { listPublicCatalog, listPublicCategories } from "@/modules/event/services/event-public-service";
 
 export const metadata: Metadata = {
   title: "Explora eventos — Ticketera",
@@ -24,13 +25,11 @@ export const metadata: Metadata = {
 
 export default async function EventsPage({ searchParams }: PageProps<"/events">) {
   const filters = parseSearchParams(await searchParams);
-  const [results, catalog, categories, cities] = await Promise.all([
-    searchEvents(filters),
-    getUpcomingEvents(),
-    getCategories(),
-    getCities(),
-  ]);
+  const [catalog, categories] = await Promise.all([listPublicCatalog(), listPublicCategories()]);
+  const results = searchCatalog(catalog, filters, categories);
   const months = getMonthOptions(catalog);
+  const cities = getCityOptions(catalog);
+  const counts = getFacetCounts(catalog, categories);
 
   return (
     <div className="flex min-h-full flex-col">
@@ -49,7 +48,7 @@ export default async function EventsPage({ searchParams }: PageProps<"/events">)
             categories={categories}
             cities={cities}
             months={months}
-            counts={getFacetCounts(catalog, categories)}
+            counts={counts}
             resultCount={results.length}
           />
 

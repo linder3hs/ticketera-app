@@ -1,15 +1,9 @@
-import { filterEvents, sortEvents } from "@/modules/event/event-search";
-import type {
-  Event,
-  EventCategory,
-  EventDetail,
-  EventSearchFilters,
-} from "@/modules/event/event.types";
+import type { Event, EventCategory, EventDetail } from "@/modules/event/event.types";
 
 /**
- * Mock in-memory data for the pages that still read it (search, detail,
- * purchase, my tickets) and for the DB seed. The landing reads the DB
- * (`event-public-service.ts`).
+ * Mock in-memory data that only feeds "Mis entradas" (`/my-tickets`),
+ * `booking/services/venue-service.ts` and the DB seed. The landing, the
+ * search and the event detail read the DB (`event-public-service.ts`).
  *
  * Market assumption (validated with the user via the approved spec
  * `docs/specs/event-landing-page.md`): a mix of Peruvian cities (Lima,
@@ -305,31 +299,6 @@ export async function getEventById(id: string): Promise<EventDetail | undefined>
   const details = EVENT_DETAILS[id];
 
   return event && details ? { ...event, ...details } : undefined;
-}
-
-/**
- * Returns up to `limit` events to suggest next to `id`: same category first,
- * then the rest by date. Never includes the event itself.
- */
-export async function getRelatedEvents(id: string, limit = 4): Promise<Event[]> {
-  const current = EVENTS.find((event) => event.id === id);
-  const others = EVENTS.filter((event) => event.id !== id).sort((a, b) =>
-    a.date.localeCompare(b.date),
-  );
-  const sameCategory = others.filter((event) => event.category === current?.category);
-  const rest = others.filter((event) => event.category !== current?.category);
-
-  return [...sameCategory, ...rest].slice(0, limit);
-}
-
-/** Events matching the search page filters, in the requested order. */
-export async function searchEvents(filters: EventSearchFilters): Promise<Event[]> {
-  return sortEvents(filterEvents(EVENTS, filters, CATEGORIES), filters.sort);
-}
-
-/** Cities with events, alphabetically. */
-export async function getCities(): Promise<string[]> {
-  return [...new Set(EVENTS.map((event) => event.city))].sort((a, b) => a.localeCompare(b, "es"));
 }
 
 /** Returns the list of event categories shown as filter chips. */

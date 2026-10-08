@@ -19,9 +19,9 @@ import type { Event, EventCategory, EventDetail } from "@/modules/event/event.ty
 import { zoneCapacity, zoneOccupancy } from "@/modules/event/services/event-facts-service";
 
 /**
- * Public reads for the landing and the event detail (no session): only events
- * visible in public, that is published and not started yet (see the spec's
- * "Definiciones").
+ * Public reads for the landing, the search and the event detail (no session):
+ * only events visible in public, that is published and not started yet (see
+ * the spec's "Definiciones").
  */
 
 /** Visible in public at `now`; covered by `event_status_starts_at_idx`. */
@@ -59,16 +59,20 @@ const publicEventColumns = {
   city: venue.city,
 };
 
-/** Up to `limit` events matching `where`, soonest first. */
-async function selectPublicEvents(where: SQL | undefined, limit: number): Promise<Event[]> {
-  const rows: PublicEventRow[] = await db
+/**
+ * Events matching `where`, soonest first (`starts_at`, then `id`): up to
+ * `limit` of them, or all of them without a `LIMIT` clause when it is omitted.
+ */
+async function selectPublicEvents(where: SQL | undefined, limit?: number): Promise<Event[]> {
+  const query = db
     .select(publicEventColumns)
     .from(event)
     .innerJoin(venue, eq(venue.id, event.venueId))
     .innerJoin(category, eq(category.id, event.categoryId))
     .where(where)
     .orderBy(event.startsAt, event.id)
-    .limit(limit);
+    .$dynamic();
+  const rows: PublicEventRow[] = await (limit === undefined ? query : query.limit(limit));
 
   return toPublicEvents(rows, await selectPublicZones(rows.map((row) => row.id)));
 }
@@ -94,6 +98,17 @@ export async function listUpcomingEvents(categorySlug?: string, now = new Date()
     and(isPublic(now), categorySlug ? eq(category.slug, categorySlug) : undefined),
     UPCOMING_LIMIT,
   );
+}
+
+/**
+ * The catalog of the `/events` search: every event visible in public at `now`,
+ * soonest first and without limit, read once per request and then filtered,
+ * sorted and counted in memory by `event-search.ts`. Fits hundreds or a few
+ * thousand events; past that, move the filters to SQL (see the spec's "Techo y
+ * camino de mejora").
+ */
+export async function listPublicCatalog(now = new Date()): Promise<Event[]> {
+  return selectPublicEvents(isPublic(now));
 }
 
 /** The detail of the event with `slug` visible in public at `now`; `undefined` for an invalid slug (without querying), unknown or not public. */
