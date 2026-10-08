@@ -10,16 +10,9 @@ interface EventGridProps {
   categoryLabel?: string;
   /** Columns from `lg`; 3 fits next to the search filters. */
   columns?: 3 | 4;
-  /** Cards link to the event detail; `false` renders them without a link. */
-  linked?: boolean;
 }
 
-export function EventGrid({
-  events,
-  categoryLabel,
-  columns = 4,
-  linked = true,
-}: EventGridProps) {
+export function EventGrid({ events, categoryLabel, columns = 4 }: EventGridProps) {
   if (events.length === 0) {
     return (
       <div className="flex flex-col items-center gap-3 rounded-3xl border-[1.5px] border-dashed border-zinc-300 bg-card px-5 py-12 text-center lg:py-[72px]">
@@ -47,7 +40,7 @@ export function EventGrid({
       className={`grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-6 ${columns === 3 ? "lg:grid-cols-3" : "lg:grid-cols-4"}`}
     >
       {events.map((event) => (
-        <EventCard key={event.id} event={event} preview={!linked} />
+        <EventCard key={event.id} event={event} />
       ))}
     </div>
   );

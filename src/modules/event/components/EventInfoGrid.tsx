@@ -14,7 +14,12 @@ interface InfoItem {
 
 export function EventInfoGrid({ event }: EventInfoGridProps) {
   const items: InfoItem[] = [
-    { icon: Clock, label: "Apertura de puertas", value: `${event.doorsOpenAt} h` },
+    {
+      icon: Clock,
+      label: "Apertura de puertas",
+      // `""` means the organizer has not announced it.
+      value: event.doorsOpenAt === "" ? "Por confirmar" : `${event.doorsOpenAt} h`,
+    },
     { icon: Music, label: "Inicio del show", value: `${event.startsAt} h` },
     { icon: User, label: "Edad mínima", value: event.minAge ? `+${event.minAge} años` : "Todas las edades" },
     { icon: QrCode, label: "Ingreso", value: "Entrada digital con QR" },

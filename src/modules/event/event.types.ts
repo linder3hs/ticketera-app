@@ -1,5 +1,7 @@
 export interface Event {
   id: string;
+  /** Key of the public URL `/events/<slug>`; the event's identity is `id`. */
+  slug: string;
   title: string;
   category: string;
   /** Cover URL; `""` means "no cover" (cards and the carousel show a placeholder). */
@@ -17,6 +19,7 @@ export interface Event {
 /** Fields only the event detail page needs. Times are "HH:mm". */
 export interface EventDetail extends Event {
   description: string;
+  /** `""` means "no doors time announced" (events created from the panel don't have one). */
   doorsOpenAt: string;
   startsAt: string;
   minAge: number | null;

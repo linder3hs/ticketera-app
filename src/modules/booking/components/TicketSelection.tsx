@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
+import { EventCover } from "@/modules/event/components/EventCover";
 import { formatEventDateParts } from "@/modules/event/event.utils";
 import type { Event } from "@/modules/event/event.types";
 import { usePersistHydration } from "@/lib/use-persist-hydration";
@@ -14,7 +14,7 @@ import { OrderSummary } from "@/modules/booking/components/OrderSummary";
 import { VenueExplorer } from "@/modules/booking/components/VenueExplorer";
 
 interface TicketSelectionProps {
-  event: Pick<Event, "id" | "title" | "date" | "venue" | "city" | "imageUrl" | "currency">;
+  event: Pick<Event, "id" | "slug" | "title" | "date" | "venue" | "city" | "imageUrl" | "currency">;
   venue: VenueMap;
 }
 
@@ -49,7 +49,7 @@ export function TicketSelection({ event, venue }: TicketSelectionProps) {
       <div className="border-b border-zinc-100 bg-background lg:border-0 lg:bg-transparent">
         <div className="mx-auto hidden max-w-7xl px-6 pt-6 lg:block">
           <Link
-            href={`/events/${event.id}`}
+            href={`/events/${event.slug}`}
             className="flex h-8 w-fit items-center gap-1.5 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
           >
             <ArrowLeft className="size-4" aria-hidden="true" />
@@ -58,7 +58,7 @@ export function TicketSelection({ event, venue }: TicketSelectionProps) {
         </div>
         <div className="mx-auto flex max-w-7xl items-center gap-3 p-4 md:px-6 lg:gap-4 lg:pt-4 lg:pb-7">
           <div className="relative size-[52px] shrink-0 overflow-hidden rounded-[14px] lg:size-16 lg:rounded-2xl">
-            <Image src={event.imageUrl} alt="" fill sizes="64px" className="object-cover" />
+            <EventCover src={event.imageUrl} alt="" sizes="64px" />
           </div>
           <div className="flex min-w-0 flex-col gap-px lg:gap-0.5">
             <h1 className="truncate text-[15px] font-semibold lg:text-[26px] lg:leading-tight lg:font-bold lg:tracking-tight">
@@ -85,7 +85,7 @@ export function TicketSelection({ event, venue }: TicketSelectionProps) {
         />
 
         <OrderSummary
-          checkoutHref={`/events/${event.id}/checkout`}
+          checkoutHref={`/events/${event.slug}/checkout`}
           lines={lines}
           count={count}
           total={total}

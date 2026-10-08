@@ -16,6 +16,7 @@ import type { Event, EventCategory } from "@/modules/event/event.types";
 function event(overrides: Partial<Event>): Event {
   return {
     id: "evt",
+    slug: "evento",
     title: "Evento",
     category: "Conciertos",
     imageUrl: "",

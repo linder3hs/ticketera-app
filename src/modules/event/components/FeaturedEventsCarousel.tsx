@@ -2,7 +2,9 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import {
+  ArrowRight,
   Calendar,
   ChevronLeft,
   ChevronRight,
@@ -13,7 +15,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { EventStatusBadge } from "@/modules/event/components/EventStatusBadge";
 import {
   formatEventDateParts,
@@ -70,6 +72,7 @@ export function FeaturedEventsCarousel({ events }: FeaturedEventsCarouselProps) 
   const current = events[index];
   if (!current) return null;
 
+  const isSoldOut = current.status === "sold-out";
   const goTo = (next: number) => setIndex((next + count) % count);
 
   return (
@@ -195,6 +198,28 @@ export function FeaturedEventsCarousel({ events }: FeaturedEventsCarouselProps) 
                 {formatEventPrice(current.priceFrom, current.currency)}
               </span>
             </p>
+            <div className="mt-3.5 flex gap-2.5">
+              {/* Sold out: no purchase CTA; the "Agotado" badge is already on the photo. */}
+              {!isSoldOut && (
+                <Link
+                  href={`/events/${current.slug}/tickets`}
+                  className={cn(buttonVariants({ variant: "cta" }), "h-[52px] flex-1 cursor-pointer gap-2 rounded-2xl text-base font-semibold")}
+                >
+                  Comprar entradas
+                  <ArrowRight className="size-[18px]" aria-hidden="true" />
+                </Link>
+              )}
+              <Link
+                href={`/events/${current.slug}`}
+                className={cn(
+                  buttonVariants({ variant: "outline" }),
+                  "h-[52px] cursor-pointer rounded-2xl border-white/40 bg-transparent px-5 text-base text-white hover:bg-white/10 hover:text-white",
+                  isSoldOut ? "flex-1" : "hidden sm:inline-flex",
+                )}
+              >
+                Ver detalles
+              </Link>
+            </div>
           </div>
         </div>
       </div>

@@ -1,5 +1,5 @@
-import { toLimaDate } from "@/modules/event/event-list.utils";
-import type { Event } from "@/modules/event/event.types";
+import { toLimaDate, toLimaTime } from "@/modules/event/event-list.utils";
+import type { Event, EventDetail } from "@/modules/event/event.types";
 
 /** "Últimas entradas" when what is left is at most this share of the capacity. */
 export const LAST_TICKETS_RATIO = 0.1;
@@ -10,9 +10,25 @@ export const FEATURED_LIMIT = 5;
 /** Events in the landing's "Próximos eventos" grid. */
 export const UPCOMING_LIMIT = 8;
 
+/** Events in the detail's "También te puede interesar". */
+export const RELATED_LIMIT = 4;
+
+/**
+ * What `slugify` and `nextAvailableSlug` produce: `[a-z0-9]` words joined by
+ * single `-`, none at the edges. No length cap (titles have none). Linear: every
+ * repeated group starts with a mandatory `-`, so there is no catastrophic backtracking.
+ */
+export const EVENT_SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+/** Whether `slug` can be an event slug; lets the detail skip the DB for impossible ones (e.g. `\u0000`, which Postgres rejects). */
+export function isEventSlug(slug: string): boolean {
+  return EVENT_SLUG_PATTERN.test(slug);
+}
+
 /** An event as the public read returns it, with its category label and venue. */
 export interface PublicEventRow {
   id: string;
+  slug: string;
   title: string;
   coverImageUrl: string | null;
   coverAlt: string | null;
@@ -22,6 +38,14 @@ export interface PublicEventRow {
   category: string;
   venue: string;
   city: string;
+}
+
+/** A public event row plus the fields only the detail page needs. */
+export interface PublicEventDetailRow extends PublicEventRow {
+  description: string | null;
+  doorsOpenAt: Date | null;
+  minAge: number | null;
+  address: string;
 }
 
 /** One zone of a public event: GA and numbered zones alike, already resolved to capacity and occupancy. */
@@ -69,6 +93,7 @@ export function toPublicEvents(events: PublicEventRow[], zones: PublicZoneRow[])
     const summary = summaries.get(row.id);
     return {
       id: row.id,
+      slug: row.slug,
       title: row.title,
       category: row.category,
       imageUrl: row.coverImageUrl ?? "",
@@ -82,4 +107,17 @@ export function toPublicEvents(events: PublicEventRow[], zones: PublicZoneRow[])
       featured: row.featured,
     };
   });
+}
+
+/** Maps the detail row and its zones to `EventDetail`: the `Event` fields as in `toPublicEvents`, times as Lima's `HH:mm`. */
+export function toPublicEventDetail(row: PublicEventDetailRow, zones: PublicZoneRow[]): EventDetail {
+  const [base] = toPublicEvents([row], zones);
+  return {
+    ...base,
+    description: row.description ?? "",
+    startsAt: toLimaTime(row.startsAt),
+    doorsOpenAt: row.doorsOpenAt ? toLimaTime(row.doorsOpenAt) : "",
+    minAge: row.minAge,
+    address: row.address,
+  };
 }

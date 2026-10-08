@@ -256,6 +256,7 @@ export function EventForm({ options, organizers, event, canPublish }: EventFormP
 
   const previewEvent: Event = {
     id: "preview",
+    slug: "preview",
     title: values.title.trim() || "Nombre del evento",
     category: category?.label ?? "Categoría",
     imageUrl: values.coverImageUrl.trim().startsWith("https://") ? values.coverImageUrl.trim() : "",

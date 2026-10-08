@@ -3,13 +3,12 @@ import { notFound } from "next/navigation";
 
 import { CheckoutHeader } from "@/modules/booking/components/CheckoutHeader";
 import { OrderConfirmation } from "@/modules/booking/components/OrderConfirmation";
-import { getEventById } from "@/modules/event/services/event-service";
+import { getPublicEventDetail } from "@/modules/event/services/event-public-service";
 
 export const metadata: Metadata = { title: "Compra confirmada — Ticketera" };
 
-export default async function ConfirmationPage({ params }: PageProps<"/events/[id]/confirmation">) {
-  const { id } = await params;
-  const event = await getEventById(id);
+export default async function ConfirmationPage({ params }: PageProps<"/events/[slug]/confirmation">) {
+  const event = await getPublicEventDetail((await params).slug);
   if (!event) notFound();
 
   return (

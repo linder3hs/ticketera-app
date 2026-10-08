@@ -85,7 +85,7 @@ function PayButton({ label, disabled, className }: { label: string; disabled: bo
   );
 }
 
-function EmptyState({ eventId, title, description }: { eventId: string; title: string; description: string }) {
+function EmptyState({ eventSlug, title, description }: { eventSlug: string; title: string; description: string }) {
   return (
     <div className="mx-auto flex max-w-lg flex-col items-center gap-3 px-4 py-16 text-center">
       <span className="flex size-14 items-center justify-center rounded-[18px] bg-indigo-50 text-primary">
@@ -94,7 +94,7 @@ function EmptyState({ eventId, title, description }: { eventId: string; title: s
       <h1 className="text-xl font-semibold">{title}</h1>
       <p className="text-[15px] text-muted-foreground">{description}</p>
       <Link
-        href={`/events/${eventId}/tickets`}
+        href={`/events/${eventSlug}/tickets`}
         className="mt-2 flex h-12 items-center rounded-[14px] bg-foreground px-5 text-[15px] font-semibold text-background focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
       >
         Elegir entradas
@@ -139,7 +139,7 @@ export function CheckoutForm({ event, zones }: CheckoutFormProps) {
   if (isExpired) {
     return (
       <EmptyState
-        eventId={event.id}
+        eventSlug={event.slug}
         title="Tu reserva expiró"
         description="Liberamos tus entradas porque pasaron 10 minutos. Vuelve a elegirlas para continuar."
       />
@@ -148,7 +148,7 @@ export function CheckoutForm({ event, zones }: CheckoutFormProps) {
   if (!hasTickets) {
     return (
       <EmptyState
-        eventId={event.id}
+        eventSlug={event.slug}
         title="Todavía no elegiste entradas"
         description="Elige tus entradas para continuar con el pago."
       />
@@ -195,7 +195,7 @@ export function CheckoutForm({ event, zones }: CheckoutFormProps) {
       email: values.email.trim(),
     });
     setIsPaid(true);
-    router.push(`/events/${event.id}/confirmation`);
+    router.push(`/events/${event.slug}/confirmation`);
   }
 
   return (

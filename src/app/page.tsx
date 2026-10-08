@@ -56,11 +56,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
               <CategoryChips categories={categories} selectedId={selectedCategory?.id} />
             </div>
             <div className="mt-5 lg:mt-8">
-              <EventGrid
-                events={upcomingEvents}
-                categoryLabel={selectedCategory?.label}
-                linked={false}
-              />
+              <EventGrid events={upcomingEvents} categoryLabel={selectedCategory?.label} />
             </div>
           </div>
         </section>

@@ -21,6 +21,7 @@ import type {
 const EVENTS: Event[] = [
   {
     id: "evt-001",
+    slug: "bad-bunny-world-tour",
     title: "Bad Bunny — World Tour",
     category: "Conciertos",
     imageUrl:
@@ -36,6 +37,7 @@ const EVENTS: Event[] = [
   },
   {
     id: "evt-002",
+    slug: "festival-vive-latino-lima",
     title: "Festival Vive Latino Lima",
     category: "Festivales",
     imageUrl:
@@ -51,6 +53,7 @@ const EVENTS: Event[] = [
   },
   {
     id: "evt-003",
+    slug: "clasico-peruano-universitario-vs-alianza-lima",
     title: "Clásico Peruano: Universitario vs. Alianza Lima",
     category: "Deportes",
     imageUrl:
@@ -66,6 +69,7 @@ const EVENTS: Event[] = [
   },
   {
     id: "evt-004",
+    slug: "romeo-y-julieta-obra-de-teatro",
     title: "Romeo y Julieta — Obra de Teatro",
     category: "Teatro",
     imageUrl:
@@ -81,6 +85,7 @@ const EVENTS: Event[] = [
   },
   {
     id: "evt-005",
+    slug: "feria-familiar-de-verano",
     title: "Feria Familiar de Verano",
     category: "Familiar",
     imageUrl:
@@ -96,6 +101,7 @@ const EVENTS: Event[] = [
   },
   {
     id: "evt-006",
+    slug: "coldplay-music-of-the-spheres-world-tour",
     title: "Coldplay — Music of the Spheres World Tour",
     category: "Conciertos",
     imageUrl:
@@ -111,6 +117,7 @@ const EVENTS: Event[] = [
   },
   {
     id: "evt-007",
+    slug: "nba-global-games-exhibicion-de-basquet",
     title: "NBA Global Games — Exhibición de Básquet",
     category: "Deportes",
     imageUrl:
@@ -126,6 +133,7 @@ const EVENTS: Event[] = [
   },
   {
     id: "evt-008",
+    slug: "festival-electronico-ultra-lima",
     title: "Festival Electrónico Ultra Lima",
     category: "Festivales",
     imageUrl:
@@ -141,6 +149,7 @@ const EVENTS: Event[] = [
   },
   {
     id: "evt-009",
+    slug: "concierto-sinfonico-de-ano-nuevo",
     title: "Concierto Sinfónico de Año Nuevo",
     category: "Conciertos",
     imageUrl:
@@ -156,6 +165,7 @@ const EVENTS: Event[] = [
   },
   {
     id: "evt-010",
+    slug: "circo-de-las-estrellas",
     title: "Circo de las Estrellas",
     category: "Familiar",
     imageUrl:

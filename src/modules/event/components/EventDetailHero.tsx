@@ -1,9 +1,9 @@
-import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, Calendar, Clock, MapPin, Share2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
+import { EventCover } from "@/modules/event/components/EventCover";
 import { SaveEventButton } from "@/modules/event/components/SaveEventButton";
 import { formatEventDateParts, formatEventPrice } from "@/modules/event/event.utils";
 import type { EventDetail } from "@/modules/event/event.types";
@@ -26,13 +26,12 @@ export function EventDetailHero({ event }: EventDetailHeroProps) {
   return (
     <div className="flex flex-col overflow-hidden rounded-[28px] bg-indigo-950 lg:grid lg:h-[460px] lg:grid-cols-[minmax(0,540px)_minmax(0,1fr)] lg:rounded-[32px]">
       <div className="relative h-[220px] sm:h-[300px] lg:order-2 lg:h-full">
-        <Image
+        <EventCover
           src={event.imageUrl}
           alt={event.imageAlt}
-          fill
-          priority
           sizes="(min-width: 1024px) 60vw, 100vw"
-          className="object-cover"
+          priority
+          className="bg-indigo-900 text-indigo-300"
         />
       </div>
 
@@ -65,7 +64,7 @@ export function EventDetailHero({ event }: EventDetailHeroProps) {
             </span>
           ) : (
             <Link
-              href={`/events/${event.id}/tickets`}
+              href={`/events/${event.slug}/tickets`}
               className={cn(buttonVariants({ variant: "cta" }), "hidden h-[54px] flex-1 cursor-pointer gap-2 rounded-2xl text-base font-semibold lg:inline-flex")}
             >
               Comprar entradas · desde {formatEventPrice(event.priceFrom, event.currency)}

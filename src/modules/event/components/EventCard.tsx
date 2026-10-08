@@ -12,7 +12,7 @@ import type { Event } from "@/modules/event/event.types";
 
 interface EventCardProps {
   event: Event;
-  /** Renders the card without a link to the event detail (create-event preview, or lists whose events have no detail page yet). That is its only effect. */
+  /** Create-event preview only: renders the card without a link to the event detail. That is its only effect. */
   preview?: boolean;
 }
 
@@ -77,7 +77,7 @@ export function EventCard({ event, preview = false }: EventCardProps) {
               event.title
             ) : (
               <Link
-                href={`/events/${event.id}`}
+                href={`/events/${event.slug}`}
                 className="outline-none after:absolute after:inset-0 after:content-['']"
               >
                 {event.title}

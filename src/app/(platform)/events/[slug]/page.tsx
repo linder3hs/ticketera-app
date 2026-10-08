@@ -5,7 +5,7 @@ import { notFound } from "next/navigation";
 import { Footer } from "@/components/Footer";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SectionHeading } from "@/components/ui/SectionHeading";
-import { getVenueMap } from "@/modules/booking/services/venue-service";
+import { getEventVenueMap } from "@/modules/booking/services/venue-map-service";
 import { EventDetailHero } from "@/modules/event/components/EventDetailHero";
 import { EventGrid } from "@/modules/event/components/EventGrid";
 import { EventInfoGrid } from "@/modules/event/components/EventInfoGrid";
@@ -13,28 +13,28 @@ import { PurchaseCard } from "@/modules/event/components/PurchaseCard";
 import { TicketTierList } from "@/modules/event/components/TicketTierList";
 import { VenueCard } from "@/modules/event/components/VenueCard";
 import {
-  getCategories,
-  getEventById,
-  getRelatedEvents,
-} from "@/modules/event/services/event-service";
+  getPublicEventDetail,
+  listPublicCategories,
+  listRelatedEvents,
+} from "@/modules/event/services/event-public-service";
 
-export async function generateMetadata({ params }: PageProps<"/events/[id]">): Promise<Metadata> {
-  const event = await getEventById((await params).id);
-  return event ? { title: `${event.title} — Ticketera`, description: event.description } : {};
+export async function generateMetadata({ params }: PageProps<"/events/[slug]">): Promise<Metadata> {
+  const event = await getPublicEventDetail((await params).slug);
+  if (!event) return {};
+  return {
+    title: `${event.title} — Ticketera`,
+    ...(event.description ? { description: event.description } : {}),
+  };
 }
 
 const SECTION_TITLE_CLASS = "text-xl font-bold tracking-tight lg:text-2xl";
 
-export default async function EventDetailPage({ params }: PageProps<"/events/[id]">) {
-  const { id } = await params;
-  const [event, venue, related, categories] = await Promise.all([
-    getEventById(id),
-    getVenueMap(id),
-    getRelatedEvents(id),
-    getCategories(),
-  ]);
-  if (!event || !venue) notFound();
+export default async function EventDetailPage({ params }: PageProps<"/events/[slug]">) {
+  const { slug } = await params;
+  const [event, categories] = await Promise.all([getPublicEventDetail(slug), listPublicCategories()]);
+  if (!event) notFound();
 
+  const [venue, related] = await Promise.all([getEventVenueMap(event), listRelatedEvents(event.id)]);
   const category = categories.find((item) => item.label === event.category);
 
   return (
@@ -71,10 +71,12 @@ export default async function EventDetailPage({ params }: PageProps<"/events/[id
 
           <div className="grid grid-cols-[minmax(0,1fr)] gap-8 pt-8 pb-10 lg:grid-cols-[minmax(0,1fr)_400px] lg:items-start lg:gap-14 lg:pt-14 lg:pb-18">
             <div className="flex flex-col gap-8 lg:gap-12">
-              <section className="flex flex-col gap-3 lg:gap-4">
-                <h2 className={SECTION_TITLE_CLASS}>Acerca del evento</h2>
-                <p className="text-[15px] leading-relaxed text-zinc-600 lg:text-base">{event.description}</p>
-              </section>
+              {event.description && (
+                <section className="flex flex-col gap-3 lg:gap-4">
+                  <h2 className={SECTION_TITLE_CLASS}>Acerca del evento</h2>
+                  <p className="text-[15px] leading-relaxed text-zinc-600 lg:text-base">{event.description}</p>
+                </section>
+              )}
 
               <section className="flex flex-col gap-3 lg:gap-4">
                 <h2 className={SECTION_TITLE_CLASS}>Información importante</h2>

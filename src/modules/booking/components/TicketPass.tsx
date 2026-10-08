@@ -1,7 +1,7 @@
-import Image from "next/image";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { QrPattern } from "@/components/ui/qr-pattern";
+import { EventCover } from "@/modules/event/components/EventCover";
 import { formatEventDateParts } from "@/modules/event/event.utils";
 import type { Event } from "@/modules/event/event.types";
 import type { OrderTicket } from "@/modules/booking/ticket-export";
@@ -38,7 +38,7 @@ export function TicketPass({ event, ticket, index, count, totalLabel, onPrevious
       className="flex w-full max-w-[880px] flex-col overflow-hidden rounded-3xl border border-border bg-card md:min-h-[232px] md:flex-row"
     >
       <div className="relative h-[130px] shrink-0 md:h-full md:w-[200px]">
-        <Image src={event.imageUrl} alt="" fill sizes="(min-width: 768px) 200px, 100vw" className="object-cover" />
+        <EventCover src={event.imageUrl} alt="" sizes="(min-width: 768px) 200px, 100vw" />
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col gap-1.5 px-5 py-[18px] md:gap-2 md:px-7 md:py-[26px]">
