@@ -24,6 +24,13 @@ describe("getNavSections", () => {
     expect(itemLabels("customer")).not.toContain("Configuración");
   });
 
+  it("shows Recintos to organizers and above, not to customers", () => {
+    expect(itemLabels("organizer")).toContain("Recintos");
+    expect(itemLabels("admin")).toContain("Recintos");
+    expect(itemLabels("super_admin")).toContain("Recintos");
+    expect(itemLabels("customer")).not.toContain("Recintos");
+  });
+
   it("shows nothing to customers", () => {
     expect(getNavSections("customer")).toEqual([]);
   });
@@ -52,6 +59,12 @@ describe("getActiveHref", () => {
   it("lights up Configuración on its page and sub-routes, not Eventos", () => {
     expect(getActiveHref(sections, "/organizer/settings")).toBe("/organizer/settings");
     expect(getActiveHref(sections, "/organizer/settings/connect/refresh")).toBe("/organizer/settings");
+  });
+
+  it("lights up Recintos on its page and sub-routes, not Eventos", () => {
+    expect(getActiveHref(sections, "/organizer/venues")).toBe("/organizer/venues");
+    expect(getActiveHref(sections, "/organizer/venues/abc")).toBe("/organizer/venues");
+    expect(getActiveHref(sections, "/organizer/venues/new")).toBe("/organizer/venues");
   });
 
   it("returns undefined outside the panel", () => {

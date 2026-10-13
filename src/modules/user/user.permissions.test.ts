@@ -24,6 +24,21 @@ describe("can", () => {
   });
 });
 
+describe("venue permissions", () => {
+  it("lets organizers and above manage their own venues, not customers", () => {
+    expect(can("organizer", "venue:manage-own")).toBe(true);
+    expect(can("admin", "venue:manage-own")).toBe(true);
+    expect(can("customer", "venue:manage-own")).toBe(false);
+  });
+
+  it("reserves venue moderation for admins and above", () => {
+    expect(can("admin", "venue:moderate")).toBe(true);
+    expect(can("super_admin", "venue:moderate")).toBe(true);
+    expect(can("organizer", "venue:moderate")).toBe(false);
+    expect(can("customer", "venue:moderate")).toBe(false);
+  });
+});
+
 describe("canAssignRole", () => {
   it("lets the super admin create admins and organizers", () => {
     expect(canAssignRole("super_admin", "customer", "admin")).toBe(true);
