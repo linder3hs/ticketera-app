@@ -1,14 +1,17 @@
 import { describe, expect, it } from "vitest";
 
-import type { PaymentIntentInput } from "@/modules/payment/payment.types";
+import type { OrderStatus, PaymentIntentInput, ReservationStatus } from "@/modules/payment/payment.types";
 import {
   CONNECT_EVENT_TYPES,
+  PAYMENT_EVENT_TYPES,
   PAYMENT_MESSAGES,
   amountToCents,
   calculatePlatformFeeCents,
+  isGuardAbort,
   mapPaymentIntentStatus,
   mapTransfersStatus,
   resolveConfirmation,
+  routeSucceededPayment,
   toPaymentIntentParams,
 } from "@/modules/payment/payment.utils";
 
@@ -85,7 +88,7 @@ describe("toPaymentIntentParams", () => {
     expect(toPaymentIntentParams(INPUT)).toEqual({
       amount: 12000,
       currency: "pen",
-      payment_method_types: ["card"],
+      allowed_payment_method_types: ["card"],
       application_fee_amount: 1200,
       transfer_data: { destination: "acct_123" },
       metadata: {
@@ -145,5 +148,52 @@ describe("resolveConfirmation", () => {
     const generic = { ok: false, error: PAYMENT_MESSAGES.generic };
     expect(resolveConfirmation({ paymentIntent: { status: "requires_payment_method" } })).toEqual(generic);
     expect(resolveConfirmation({})).toEqual(generic);
+  });
+});
+
+describe("PAYMENT_EVENT_TYPES", () => {
+  it("names the two PaymentIntent events", () => {
+    expect(PAYMENT_EVENT_TYPES).toEqual({
+      succeeded: "payment_intent.succeeded",
+      failed: "payment_intent.payment_failed",
+    });
+  });
+});
+
+describe("routeSucceededPayment", () => {
+  const ANY_RESERVATION: (ReservationStatus | null)[] = ["active", "converted", "expired", "released", null];
+  const combine = (orders: OrderStatus[]) =>
+    orders.flatMap((order) => ANY_RESERVATION.map((reservation) => [order, reservation] as const));
+
+  it.each(combine(["paid", "partially_refunded", "refunded"]))("%s order with a %s reservation is alreadyPaid", (order, reservation) => {
+    expect(routeSucceededPayment(order, reservation)).toBe("alreadyPaid");
+  });
+
+  it("fulfills a pending order with an active reservation", () => {
+    expect(routeSucceededPayment("pending", "active")).toBe("fulfill");
+  });
+
+  it.each(["expired", "released", "converted", null] as const)("refunds a pending order with a %s reservation", (reservation) => {
+    expect(routeSucceededPayment("pending", reservation)).toBe("refund");
+  });
+
+  it.each(combine(["failed", "cancelled"]))("%s order with a %s reservation is refunded", (order, reservation) => {
+    expect(routeSucceededPayment(order, reservation)).toBe("refund");
+  });
+});
+
+describe("isGuardAbort", () => {
+  it.each(["22012", "23514"])("is true for %s", (code) => {
+    expect(isGuardAbort(Object.assign(new Error("guard"), { code }))).toBe(true);
+  });
+
+  it.each(["22012", "23514"])("is true for %s wrapped in a cause", (code) => {
+    expect(isGuardAbort(new Error("Failed query", { cause: { code } }))).toBe(true);
+  });
+
+  it("is false for a unique violation, an error without code and null", () => {
+    expect(isGuardAbort(Object.assign(new Error("duplicate key"), { code: "23505" }))).toBe(false);
+    expect(isGuardAbort(new Error("network"))).toBe(false);
+    expect(isGuardAbort(null)).toBe(false);
   });
 });

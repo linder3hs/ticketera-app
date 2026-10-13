@@ -47,7 +47,7 @@ describe("preparePayment", () => {
       {
         amount: 15000,
         currency: "pen",
-        payment_method_types: ["card"],
+        allowed_payment_method_types: ["card"],
         application_fee_amount: 1500,
         transfer_data: { destination: "acct_123" },
         metadata: {

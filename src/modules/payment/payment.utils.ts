@@ -1,10 +1,14 @@
+import { pgErrorCode } from "@/lib/pg-error";
 import type { StripeOnboardingStatus } from "@/modules/user/user.types";
 import type {
   ConfirmationOutcome,
   ConfirmationResult,
+  OrderStatus,
   PaymentIntentInput,
   PaymentIntentParams,
   PaymentIntentState,
+  ReservationStatus,
+  SucceededPaymentRoute,
   TransfersStatus,
 } from "@/modules/payment/payment.types";
 
@@ -49,7 +53,7 @@ export function toPaymentIntentParams(input: PaymentIntentInput): PaymentIntentP
   return {
     amount: input.totalCents,
     currency: input.currency.toLowerCase(),
-    payment_method_types: ["card"],
+    allowed_payment_method_types: ["card"],
     ...(input.platformFeeCents > 0 ? { application_fee_amount: input.platformFeeCents } : {}),
     transfer_data: { destination: input.destinationAccountId },
     metadata: {
@@ -76,4 +80,41 @@ export function resolveConfirmation(result: ConfirmationResult): ConfirmationOut
   const status = result.paymentIntent?.status;
   if (status === "succeeded" || status === "processing") return { ok: true };
   return { ok: false, error: PAYMENT_MESSAGES.generic };
+}
+
+/** Payments webhook events the app acts on. Anything else is ignored. */
+export const PAYMENT_EVENT_TYPES = {
+  succeeded: "payment_intent.succeeded",
+  failed: "payment_intent.payment_failed",
+} as const;
+
+/**
+ * What a confirmed charge does to its order. Only a `pending` order with an `active` reservation
+ * (even past `expires_at`) is converted; an order already paid just records the event; anything
+ * else lost its hold or was closed, so the charge is refunded.
+ */
+export function routeSucceededPayment(
+  orderStatus: OrderStatus,
+  reservationStatus: ReservationStatus | null,
+): SucceededPaymentRoute {
+  switch (orderStatus) {
+    case "paid":
+    case "partially_refunded":
+    case "refunded":
+      return "alreadyPaid";
+    case "pending":
+      return reservationStatus === "active" ? "fulfill" : "refund";
+    case "failed":
+    case "cancelled":
+      return "refund";
+  }
+}
+
+/** SQLSTATEs of a tripped conversion guard: division by zero (count mismatch) and the capacity CHECK. */
+const GUARD_ABORT_CODES: ReadonlySet<string> = new Set(["22012", "23514"]);
+
+/** A conversion guard aborted the batch: 22012 (guard) or 23514 (capacity CHECK). */
+export function isGuardAbort(error: unknown): boolean {
+  const code = pgErrorCode(error);
+  return code !== undefined && GUARD_ABORT_CODES.has(code);
 }

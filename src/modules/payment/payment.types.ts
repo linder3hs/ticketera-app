@@ -1,3 +1,8 @@
+import type { orderStatus, reservationStatus } from "@/db/schema/enums"; // types only: keeps drizzle out of the client bundle
+
+export type OrderStatus = (typeof orderStatus.enumValues)[number];
+export type ReservationStatus = (typeof reservationStatus.enumValues)[number];
+
 /** Status of the `stripe_transfers` capability of a connected account (Accounts v2). */
 export type TransfersStatus = "active" | "pending" | "restricted" | "unsupported" | "rejected";
 
@@ -12,7 +17,10 @@ export interface ConnectWebhookEvent {
 /** Result of starting (or resuming) the payments onboarding: the hosted URL to redirect to. */
 export type ConnectLinkResult = { ok: true; url: string } | { ok: false; error: string };
 
-/** Raised by `ConnectGateway.parseWebhook` when the payload or signature can't be verified. */
+/**
+ * Raised by `ConnectGateway.parseWebhook` and `PaymentWebhookGateway.parseWebhook` when the payload
+ * or signature can't be verified.
+ */
 export class WebhookSignatureError extends Error {
   constructor(message = "Invalid webhook signature.") {
     super(message);
@@ -51,7 +59,7 @@ export interface PaymentIntentParams {
   amount: number;
   /** Lowercase. */
   currency: string;
-  payment_method_types: ["card"];
+  allowed_payment_method_types: ["card"];
   /** Only present when > 0. */
   application_fee_amount?: number;
   transfer_data: { destination: string };
@@ -93,3 +101,24 @@ export interface PaymentGateway {
   createPaymentIntent(params: PaymentIntentParams, idempotencyKey: string): Promise<PaymentIntentSnapshot>;
   retrievePaymentIntent(id: string): Promise<PaymentIntentSnapshot>;
 }
+
+/** What the app needs from a verified payments (v1 snapshot) webhook event. */
+export interface PaymentWebhookEvent {
+  id: string;
+  type: string;
+  /** The PaymentIntent the event is about; null when the object is not a PaymentIntent. */
+  paymentIntentId: string | null;
+  /** Id of the PaymentIntent's `latest_charge`; null when it has none. */
+  chargeId: string | null;
+}
+
+/** Narrow port for the payments webhook (ISP: the checkout keeps using `PaymentGateway`). */
+export interface PaymentWebhookGateway {
+  /** Verifies with the payments webhook secret; throws `WebhookSignatureError` when invalid, `Error` when the secret is missing. */
+  parseWebhook(payload: string, signature: string): PaymentWebhookEvent;
+  /** Full refund reversing the transfer and the platform fee; same key → same refund; `null` id when already refunded. */
+  refundPayment(paymentIntentId: string, idempotencyKey: string): Promise<{ refundId: string | null }>;
+}
+
+/** What a `payment_intent.succeeded` does to its order: convert it, just record the event, or refund the charge. */
+export type SucceededPaymentRoute = "fulfill" | "alreadyPaid" | "refund";
