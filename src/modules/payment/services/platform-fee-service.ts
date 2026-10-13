@@ -20,3 +20,11 @@ export async function getPlatformFeePercent(): Promise<number> {
   if (!parsed.success) throw new Error(`platform_setting "${PLATFORM_FEE_KEY}" is missing or invalid.`);
   return parsed.data;
 }
+
+/** Saves the fee percentage and who changed it. Only new orders use it: existing ones keep their stored `platform_fee_cents`. */
+export async function setPlatformFeePercent(percent: number, updatedBy: string): Promise<void> {
+  await db
+    .insert(platformSetting)
+    .values({ key: PLATFORM_FEE_KEY, value: percent, updatedBy })
+    .onConflictDoUpdate({ target: platformSetting.key, set: { value: percent, updatedBy } });
+}
