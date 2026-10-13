@@ -10,6 +10,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { id, timestamps } from "./columns";
 import { seatingType } from "./enums";
+import { user } from "./identity";
 
 export const venue = pgTable(
   "venue",
@@ -21,6 +22,7 @@ export const venue = pgTable(
     lat: doublePrecision("lat"),
     lng: doublePrecision("lng"),
     googlePlaceId: text("google_place_id"),
+    createdBy: uuid("created_by").references(() => user.id, { onDelete: "set null" }), // null for seeded venues
     ...timestamps,
   },
   (t) => [index("venue_city_idx").on(t.city)],
