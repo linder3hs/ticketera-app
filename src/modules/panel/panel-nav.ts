@@ -1,4 +1,4 @@
-import { BarChart3, LayoutDashboard, Users } from "lucide-react";
+import { BarChart3, LayoutDashboard, Settings, Users } from "lucide-react";
 
 import type { PanelNavSection } from "@/modules/panel/panel.types";
 import { hasRole } from "@/modules/user/user.permissions";
@@ -23,6 +23,7 @@ const SECTIONS: readonly SectionConfig[] = [
     minRole: "organizer",
     items: [
       { href: "/organizer", label: "Eventos", icon: LayoutDashboard },
+      { href: "/organizer/settings", label: "Configuración", icon: Settings },
     ],
   },
 ];

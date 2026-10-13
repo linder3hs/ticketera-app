@@ -1,8 +1,9 @@
-import type { authProvider, organizerStatus, userRole } from "@/db/schema";
+import type { authProvider, organizerStatus, stripeOnboardingStatus, userRole } from "@/db/schema";
 
 export type Role = (typeof userRole.enumValues)[number];
 export type AuthProvider = (typeof authProvider.enumValues)[number];
 export type OrganizerStatus = (typeof organizerStatus.enumValues)[number];
+export type StripeOnboardingStatus = (typeof stripeOnboardingStatus.enumValues)[number];
 
 /** Identity data mirrored from Clerk into the `user` table. */
 export interface ClerkProfile {

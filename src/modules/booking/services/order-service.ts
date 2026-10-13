@@ -31,7 +31,7 @@ const MOCK_ORDERS: Order[] = [
     count: 1,
     total: 60,
     currency: "PEN",
-    method: "yape",
+    method: "card",
     buyerName: "",
     email: "",
   },

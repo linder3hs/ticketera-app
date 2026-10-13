@@ -51,7 +51,7 @@ export interface VenueMap {
   zones: Zone[];
 }
 
-export type PaymentMethod = "card" | "yape" | "cash";
+export type PaymentMethod = "card";
 
 /** One zone of an order: tickets, amount and, for numbered zones, seats. */
 export interface OrderLine {

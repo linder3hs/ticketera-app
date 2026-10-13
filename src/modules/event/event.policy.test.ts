@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  PUBLISH_BLOCKER_MESSAGES,
   canCancelEvent,
   canCreateEvent,
   canDeleteEvent,
   canEditEvent,
   canFeatureEvent,
+  canOrganizerPublish,
   canPublishEvent,
   canUnpublishEvent,
   canViewEvent,
@@ -22,7 +24,7 @@ import type {
   PublishZone,
   ZoneState,
 } from "@/modules/event/event-write.types";
-import type { OrganizerStatus } from "@/modules/user/user.types";
+import type { OrganizerStatus, StripeOnboardingStatus } from "@/modules/user/user.types";
 
 const NOW = new Date("2026-10-02T15:00:00Z");
 const FUTURE = new Date("2026-12-15T01:00:00Z");
@@ -31,21 +33,34 @@ const PAST = new Date("2026-09-01T01:00:00Z");
 const OWN = "org-own";
 const OTHER = "org-other";
 
-const organizer = (organizerStatus: OrganizerStatus, organizerId: string | null = OWN): PolicyActor => ({
+const organizer = (
+  organizerStatus: OrganizerStatus,
+  organizerId: string | null = OWN,
+  stripeOnboardingStatus: StripeOnboardingStatus = "complete",
+): PolicyActor => ({
   role: "organizer",
   organizerId,
   organizerStatus: organizerId === null ? null : organizerStatus,
+  stripeOnboardingStatus: organizerId === null ? null : stripeOnboardingStatus,
 });
 const approved = organizer("approved");
 const pending = organizer("pending");
 const suspended = organizer("suspended");
 const foreign = organizer("approved", OTHER);
 const noProfile = organizer("approved", null);
-const admin: PolicyActor = { role: "admin", organizerId: null, organizerStatus: null };
-const superAdmin: PolicyActor = { role: "super_admin", organizerId: null, organizerStatus: null };
+const connectPending = organizer("approved", OWN, "pending");
+const connectNotStarted = organizer("approved", OWN, "not_started");
+const pendingNoConnect = organizer("pending", OWN, "not_started");
+const admin: PolicyActor = { role: "admin", organizerId: null, organizerStatus: null, stripeOnboardingStatus: null };
+const superAdmin: PolicyActor = { role: "super_admin", organizerId: null, organizerStatus: null, stripeOnboardingStatus: null };
 // A demoted organizer keeps a (suspended) row; being admin must still not make them an owner.
-const adminWithStaleProfile: PolicyActor = { role: "admin", organizerId: OWN, organizerStatus: "suspended" };
-const customer: PolicyActor = { role: "customer", organizerId: null, organizerStatus: null };
+const adminWithStaleProfile: PolicyActor = {
+  role: "admin",
+  organizerId: OWN,
+  organizerStatus: "suspended",
+  stripeOnboardingStatus: "pending",
+};
+const customer: PolicyActor = { role: "customer", organizerId: null, organizerStatus: null, stripeOnboardingStatus: null };
 
 const event = (overrides: Partial<PolicyEvent> = {}): PolicyEvent => ({
   organizerId: OWN,
@@ -139,8 +154,11 @@ describe("canPublishEvent", () => {
   const draft = event({ status: "draft" });
 
   it.each([
-    ["approved owner", approved, true],
+    ["approved owner with Connect complete", approved, true],
+    ["approved owner with Connect pending", connectPending, false],
+    ["approved owner with Connect not started", connectNotStarted, false],
     ["pending owner", pending, false],
+    ["pending owner without Connect", pendingNoConnect, false],
     ["suspended owner", suspended, false],
     ["another organizer", foreign, false],
     ["organizer without profile", noProfile, false],
@@ -165,6 +183,21 @@ describe("canPublishEvent", () => {
     expect(canPublishEvent(approved, draft, [{ ...GA, priceCents: 0 }], NOW)).toBe(false);
     expect(canPublishEvent(approved, draft, [{ ...GA, capacity: null }], NOW)).toBe(false);
     expect(canPublishEvent(approved, draft, [GA, NUMBERED], NOW)).toBe(true);
+  });
+});
+
+describe("canOrganizerPublish", () => {
+  it.each([
+    ["approved with Connect complete", approved, true],
+    ["approved with Connect pending", connectPending, false],
+    ["approved with Connect not started", connectNotStarted, false],
+    ["pending with Connect complete", pending, false],
+    ["suspended with Connect complete", suspended, false],
+    ["organizer without profile", noProfile, false],
+    ["admin", admin, false],
+    ["customer", customer, false],
+  ])("%s -> %s", (_label, actor, expected) => {
+    expect(canOrganizerPublish(actor)).toBe(expected);
   });
 });
 
@@ -329,6 +362,25 @@ describe("getEventCapabilities", () => {
     });
   });
 
+  it("keeps editing, unpublishing and cancelling but not publishing when Connect is incomplete", () => {
+    expect(getEventCapabilities(connectPending, event({ status: "draft" }), NO_SALES, [GA], NOW)).toEqual({
+      edit: true,
+      publish: false,
+      unpublish: false,
+      cancel: false,
+      delete: true,
+      feature: false,
+    });
+    expect(getEventCapabilities(connectNotStarted, event({ status: "published" }), NO_SALES, [GA], NOW)).toEqual({
+      edit: true,
+      publish: false,
+      unpublish: true,
+      cancel: true,
+      delete: true,
+      feature: false,
+    });
+  });
+
   it("gives a customer nothing", () => {
     expect(getEventCapabilities(customer, event(), NO_SALES, [GA], NOW)).toEqual({
       edit: false,
@@ -463,5 +515,43 @@ describe("getPublishBlockers", () => {
 
   it("lists every reason", () => {
     expect(getPublishBlockers({ startsAt: PAST, zones: [] }, NOW)).toEqual(["no_zones", "starts_in_past"]);
+  });
+
+  describe("with the organizer", () => {
+    const ready = { status: "approved", stripeOnboardingStatus: "complete" } as const;
+
+    it("adds nothing when the organizer is approved and Connect is complete", () => {
+      expect(getPublishBlockers({ ...snapshot(), organizer: ready }, NOW)).toEqual([]);
+    });
+
+    it("never adds organizer blockers without the organizer", () => {
+      expect(getPublishBlockers(snapshot(), NOW)).toEqual([]);
+      expect(getPublishBlockers({ startsAt: PAST, zones: [] }, NOW)).not.toContain("connect_incomplete");
+    });
+
+    it.each(["pending", "suspended", null] as const)("flags an organizer that is %s", (status) => {
+      expect(getPublishBlockers({ ...snapshot(), organizer: { ...ready, status } }, NOW)).toEqual(["organizer_not_approved"]);
+    });
+
+    it.each(["not_started", "pending", null] as const)("flags Connect when it is %s", (stripeOnboardingStatus) => {
+      expect(getPublishBlockers({ ...snapshot(), organizer: { ...ready, stripeOnboardingStatus } }, NOW)).toEqual([
+        "connect_incomplete",
+      ]);
+    });
+
+    it("lists the organizer blockers before the event ones", () => {
+      const organizer = { status: "pending", stripeOnboardingStatus: "not_started" } as const;
+      expect(getPublishBlockers({ startsAt: PAST, zones: [], organizer }, NOW)).toEqual([
+        "organizer_not_approved",
+        "connect_incomplete",
+        "no_zones",
+        "starts_in_past",
+      ]);
+    });
+  });
+
+  it("has a message for every blocker", () => {
+    expect(PUBLISH_BLOCKER_MESSAGES.organizer_not_approved).toBe("Tu perfil de organizador debe estar aprobado para publicar.");
+    expect(PUBLISH_BLOCKER_MESSAGES.connect_incomplete).toBe("Configura tus pagos en Stripe para poder publicar eventos.");
   });
 });

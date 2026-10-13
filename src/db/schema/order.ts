@@ -4,6 +4,7 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 import { id, timestamps } from "./columns";
@@ -41,7 +42,7 @@ export const orders = pgTable(
   (t) => [
     index("orders_user_id_created_at_idx").on(t.userId, t.createdAt),
     index("orders_event_id_idx").on(t.eventId),
-    index("orders_reservation_id_idx").on(t.reservationId),
+    uniqueIndex("orders_reservation_id_unique").on(t.reservationId),
   ],
 );
 

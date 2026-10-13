@@ -3,7 +3,14 @@ import { and, count, desc, eq, ilike, isNull, or } from "drizzle-orm";
 import { db } from "@/db";
 import { organizer, user } from "@/db/schema";
 import { escapeLike } from "@/lib/utils";
-import type { ClerkProfile, OrganizerStatus, Role, UsersPage, UsersQuery } from "@/modules/user/user.types";
+import type {
+  ClerkProfile,
+  OrganizerStatus,
+  Role,
+  StripeOnboardingStatus,
+  UsersPage,
+  UsersQuery,
+} from "@/modules/user/user.types";
 
 export type UserRecord = typeof user.$inferSelect;
 
@@ -17,9 +24,29 @@ export async function findUserById(id: string): Promise<UserRecord | undefined> 
   return row;
 }
 
-/** The organizer profile of a user (id and approval status), if they have one. */
-export async function findOrganizerByUserId(userId: string): Promise<{ id: string; status: OrganizerStatus } | undefined> {
-  const [row] = await db.select({ id: organizer.id, status: organizer.status }).from(organizer).where(eq(organizer.userId, userId));
+/** The organizer profile of a user (approval, tax data and payments onboarding), if they have one. */
+export async function findOrganizerByUserId(userId: string): Promise<
+  | {
+      id: string;
+      status: OrganizerStatus;
+      businessName: string;
+      taxId: string | null;
+      stripeAccountId: string | null;
+      stripeOnboardingStatus: StripeOnboardingStatus;
+    }
+  | undefined
+> {
+  const [row] = await db
+    .select({
+      id: organizer.id,
+      status: organizer.status,
+      businessName: organizer.businessName,
+      taxId: organizer.taxId,
+      stripeAccountId: organizer.stripeAccountId,
+      stripeOnboardingStatus: organizer.stripeOnboardingStatus,
+    })
+    .from(organizer)
+    .where(eq(organizer.userId, userId));
   return row;
 }
 
@@ -127,6 +154,49 @@ export async function upsertOrganizer(
 
 export async function setOrganizerStatus(userId: string, status: OrganizerStatus): Promise<void> {
   await db.update(organizer).set({ status }).where(eq(organizer.userId, userId));
+}
+
+/** Saves the tax data of the user's organizer profile. `false` when the user has no organizer row. */
+export async function updateOrganizerProfile(
+  userId: string,
+  profile: { businessName: string; taxId: string },
+): Promise<boolean> {
+  const rows = await db
+    .update(organizer)
+    .set({ businessName: profile.businessName, taxId: profile.taxId })
+    .where(eq(organizer.userId, userId))
+    .returning({ id: organizer.id });
+  return rows.length > 0;
+}
+
+/**
+ * Links the payments account to an organizer and marks onboarding as `pending`, only if none is
+ * linked yet. Returns the account id that ends up stored: `accountId`, or the one a concurrent
+ * request linked first (`undefined` if the organizer doesn't exist).
+ */
+export async function setStripeAccountId(organizerId: string, accountId: string): Promise<string | undefined> {
+  const [updated] = await db
+    .update(organizer)
+    .set({ stripeAccountId: accountId, stripeOnboardingStatus: "pending" })
+    .where(and(eq(organizer.id, organizerId), isNull(organizer.stripeAccountId)))
+    .returning({ stripeAccountId: organizer.stripeAccountId });
+  if (updated) return updated.stripeAccountId ?? accountId;
+
+  const [current] = await db
+    .select({ stripeAccountId: organizer.stripeAccountId })
+    .from(organizer)
+    .where(eq(organizer.id, organizerId));
+  return current?.stripeAccountId ?? undefined;
+}
+
+/** Stores the onboarding status of the organizer linked to `accountId`. `false` when none matches. */
+export async function setStripeOnboardingStatus(accountId: string, status: StripeOnboardingStatus): Promise<boolean> {
+  const rows = await db
+    .update(organizer)
+    .set({ stripeOnboardingStatus: status })
+    .where(eq(organizer.stripeAccountId, accountId))
+    .returning({ id: organizer.id });
+  return rows.length > 0;
 }
 
 /** Sets the role; organizer role (re)activates the organizer profile, any other suspends it. */

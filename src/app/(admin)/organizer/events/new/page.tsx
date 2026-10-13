@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
-import { canCreateEvent } from "@/modules/event/event.policy";
+import { canCreateEvent, canOrganizerPublish } from "@/modules/event/event.policy";
 import { resolvePolicyActor } from "@/modules/event/services/event-list-service";
 import { listEventFormOptions, listOrganizerOptions } from "@/modules/event/services/event-form-service";
 import { EventForm } from "@/modules/organizer/components/EventForm";
@@ -19,5 +19,5 @@ export default async function CreateEventPage() {
     actor.role === "organizer" ? undefined : listOrganizerOptions(),
   ]);
 
-  return <EventForm options={options} organizers={organizers} canPublish={actor.organizerStatus === "approved"} />;
+  return <EventForm options={options} organizers={organizers} canPublish={canOrganizerPublish(actor)} />;
 }

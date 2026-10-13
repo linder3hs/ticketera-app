@@ -1,6 +1,6 @@
 import type { seatingType } from "@/db/schema";
 import type { EventStatus } from "@/modules/event/event-list.types";
-import type { OrganizerStatus, Role } from "@/modules/user/user.types";
+import type { OrganizerStatus, Role, StripeOnboardingStatus } from "@/modules/user/user.types";
 
 export type SeatingType = (typeof seatingType.enumValues)[number];
 
@@ -51,6 +51,8 @@ export interface PolicyActor {
   /** `organizer.id` of the actor, `null` when they have no organizer profile. */
   organizerId: string | null;
   organizerStatus: OrganizerStatus | null;
+  /** Stripe Connect onboarding of the actor's organizer row, `null` without one. */
+  stripeOnboardingStatus: StripeOnboardingStatus | null;
 }
 
 /** The slice of an event the policy decides on. */
@@ -85,7 +87,19 @@ export interface PublishZone {
   capacity: number | null;
 }
 
-export type PublishBlocker = "no_zones" | "zone_without_price" | "zone_without_capacity" | "starts_in_past";
+/** The organizer facts the publish check needs (the same two fields `PolicyActor` carries). */
+export interface PublishOrganizer {
+  status: OrganizerStatus | null;
+  stripeOnboardingStatus: StripeOnboardingStatus | null;
+}
+
+export type PublishBlocker =
+  | "organizer_not_approved"
+  | "connect_incomplete"
+  | "no_zones"
+  | "zone_without_price"
+  | "zone_without_capacity"
+  | "starts_in_past";
 
 export type ZoneChangeErrorCode = "price_locked" | "zone_in_use" | "capacity_below_occupied";
 

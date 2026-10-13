@@ -26,7 +26,12 @@ const NO_FACTS: EventFacts = { hasSales: false, hasOrders: false };
 /** The policy actor of a session: role and organizer profile come from the DB, never from client input. */
 export async function resolvePolicyActor(actor: Actor): Promise<PolicyActor> {
   const profile = await findOrganizerByUserId(actor.id);
-  return { role: actor.role, organizerId: profile?.id ?? null, organizerStatus: profile?.status ?? null };
+  return {
+    role: actor.role,
+    organizerId: profile?.id ?? null,
+    organizerStatus: profile?.status ?? null,
+    stripeOnboardingStatus: profile?.stripeOnboardingStatus ?? null,
+  };
 }
 
 /** Fails closed: a role without access never reaches the DB. */

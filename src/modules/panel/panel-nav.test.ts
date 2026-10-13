@@ -4,6 +4,9 @@ import { getActiveHref, getNavSections } from "@/modules/panel/panel-nav";
 
 const labels = (role: Parameters<typeof getNavSections>[0]) => getNavSections(role).map((section) => section.label);
 
+const itemLabels = (role: Parameters<typeof getNavSections>[0]) =>
+  getNavSections(role).flatMap((section) => section.items.map((item) => item.label));
+
 describe("getNavSections", () => {
   it("shows only Organizador to organizers", () => {
     expect(labels("organizer")).toEqual(["Organizador"]);
@@ -12,6 +15,13 @@ describe("getNavSections", () => {
   it("shows Administración first, then Organizador, to admins and super admins", () => {
     expect(labels("admin")).toEqual(["Administración", "Organizador"]);
     expect(labels("super_admin")).toEqual(["Administración", "Organizador"]);
+  });
+
+  it("shows Configuración to organizers and above, not to customers", () => {
+    expect(itemLabels("organizer")).toContain("Configuración");
+    expect(itemLabels("admin")).toContain("Configuración");
+    expect(itemLabels("super_admin")).toContain("Configuración");
+    expect(itemLabels("customer")).not.toContain("Configuración");
   });
 
   it("shows nothing to customers", () => {
@@ -37,6 +47,11 @@ describe("getActiveHref", () => {
 
   it("keeps Eventos active on its sub-pages (create, edit)", () => {
     expect(getActiveHref(sections, "/organizer/events/new")).toBe("/organizer");
+  });
+
+  it("lights up Configuración on its page and sub-routes, not Eventos", () => {
+    expect(getActiveHref(sections, "/organizer/settings")).toBe("/organizer/settings");
+    expect(getActiveHref(sections, "/organizer/settings/connect/refresh")).toBe("/organizer/settings");
   });
 
   it("returns undefined outside the panel", () => {

@@ -31,7 +31,7 @@ export const organizer = pgTable("organizer", {
     .references(() => user.id),
   businessName: text("business_name").notNull(),
   taxId: text("tax_id"), // completed during organizer onboarding
-  stripeAccountId: text("stripe_account_id"),
+  stripeAccountId: text("stripe_account_id").unique(),
   stripeOnboardingStatus: stripeOnboardingStatus("stripe_onboarding_status")
     .notNull()
     .default("not_started"),

@@ -16,7 +16,7 @@ import {
   type PublicZoneRow,
 } from "@/modules/event/event-public.utils";
 import type { Event, EventCategory, EventDetail } from "@/modules/event/event.types";
-import { zoneCapacity, zoneOccupancy } from "@/modules/event/services/event-facts-service";
+import { liveZoneOccupancy, zoneCapacity } from "@/modules/event/services/event-facts-service";
 
 /**
  * Public reads for the landing, the search and the event detail (no session):
@@ -27,7 +27,7 @@ import { zoneCapacity, zoneOccupancy } from "@/modules/event/services/event-fact
 /** Visible in public at `now`; covered by `event_status_starts_at_idx`. */
 const isPublic = (now: Date): SQL | undefined => and(eq(event.status, "published"), gt(event.startsAt, now));
 
-/** Price, capacity and occupancy of every zone of `eventIds`, in one query. */
+/** Price, capacity and live occupancy (expired holds count as free) of every zone of `eventIds`, in one query. */
 async function selectPublicZones(eventIds: string[]): Promise<PublicZoneRow[]> {
   if (eventIds.length === 0) return [];
 
@@ -37,7 +37,7 @@ async function selectPublicZones(eventIds: string[]): Promise<PublicZoneRow[]> {
       priceCents: eventZone.priceCents,
       // Wrapped so `mapWith` does not set the decoder on the shared fragments.
       capacity: sql<number>`${zoneCapacity}`.mapWith(Number),
-      occupied: sql<number>`${zoneOccupancy}`.mapWith(Number),
+      occupied: sql<number>`${liveZoneOccupancy()}`.mapWith(Number),
     })
     .from(eventZone)
     .innerJoin(venueZone, eq(venueZone.id, eventZone.venueZoneId))

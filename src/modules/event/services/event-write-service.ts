@@ -3,6 +3,7 @@ import type { BatchItem } from "drizzle-orm/batch";
 
 import { db } from "@/db";
 import { category, event, eventSeat, eventZone, orderItem, organizer, reservationItem, venue, venueSeat, venueZone } from "@/db/schema";
+import { pgErrorCode } from "@/lib/pg-error";
 import { escapeLike, slugify } from "@/lib/utils";
 import type { EventStatus } from "@/modules/event/event-list.types";
 import type {
@@ -30,6 +31,7 @@ import {
   editableFields,
   getPublishBlockers,
   isEventReadOnly,
+  toPublishOrganizer,
 } from "@/modules/event/event.policy";
 import {
   eventHasOrders,
@@ -77,16 +79,6 @@ const MESSAGES = {
 } as const;
 
 const fail = (error: string): { ok: false; error: string } => ({ ok: false, error });
-
-/** Postgres error code of a driver error, looking through wrappers (`cause`). */
-function pgErrorCode(error: unknown): string | undefined {
-  for (let current = error, depth = 0; current && depth < 5; depth += 1) {
-    const code = (current as { code?: unknown }).code;
-    if (typeof code === "string") return code;
-    current = (current as { cause?: unknown }).cause;
-  }
-  return undefined;
-}
 
 /** Logs the detail and answers with a message that exposes nothing; a tripped capacity CHECK means sales moved in. */
 function failed(context: string, error: unknown): { ok: false; error: string } {
@@ -481,7 +473,10 @@ function statusDenial(
     if (actor.organizerStatus !== "approved") return MESSAGES.notApproved;
     if (stored.status !== "draft") return MESSAGES.onlyDraftPublishes;
     if (isEventReadOnly(stored, now)) return MESSAGES.readOnly;
-    const [blocker] = getPublishBlockers({ startsAt: stored.startsAt, zones }, now);
+    const [blocker] = getPublishBlockers(
+      { startsAt: stored.startsAt, zones, organizer: toPublishOrganizer(actor) },
+      now,
+    );
     return blocker ? PUBLISH_BLOCKER_MESSAGES[blocker] : MESSAGES.forbidden;
   }
 
@@ -525,7 +520,7 @@ export async function setEventStatus(
           gt(event.startsAt, now),
           ownerGuard(actor),
           status === "published"
-            ? sql`exists (select 1 from ${eventZone} where ${eventZone.eventId} = ${event.id} and ${eventZone.priceCents} > 0) and exists (select 1 from ${organizer} where ${organizer.id} = ${event.organizerId} and ${organizer.status} = 'approved')`
+            ? sql`exists (select 1 from ${eventZone} where ${eventZone.eventId} = ${event.id} and ${eventZone.priceCents} > 0) and exists (select 1 from ${organizer} where ${organizer.id} = ${event.organizerId} and ${organizer.status} = 'approved' and ${organizer.stripeOnboardingStatus} = 'complete')`
             : undefined,
           unpublishWithoutSales ? sql`not ${eventHasSales(event.id)}` : undefined,
         ),

@@ -2,16 +2,17 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { CalendarCheck, CircleCheck, Plus, Ticket, TrendingUp, X } from "lucide-react";
+import { CalendarCheck, CircleAlert, CircleCheck, Plus, Ticket, TrendingUp, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { PUBLISH_BLOCKER_MESSAGES } from "@/modules/event/event.policy";
 import { EVENT_PAGE_SIZES } from "@/modules/event/event-list.schema";
 import type { SalesSummary } from "@/modules/event/event-list.types";
 import { formatEventPrice } from "@/modules/event/event.utils";
 import { useEvents } from "@/modules/event/hooks/use-events";
 import { useOrganizerStore } from "@/modules/organizer/organizer.store";
-import type { OrganizerStatus } from "@/modules/user/user.types";
+import type { OrganizerStatus, StripeOnboardingStatus } from "@/modules/user/user.types";
 import { NO_FILTERS, OrganizerEventFilters, type EventFilters } from "@/modules/organizer/components/OrganizerEventFilters";
 import { EVENT_TABLE_COLUMNS, OrganizerEventRow } from "@/modules/organizer/components/OrganizerEventRow";
 
@@ -29,10 +30,12 @@ interface OrganizerDashboardProps {
   canCreate: boolean;
   /** `null` for admins, who have no organizer profile. */
   organizerStatus: OrganizerStatus | null;
+  /** Payments (Stripe Connect) onboarding; `null` for admins. */
+  connectStatus: StripeOnboardingStatus | null;
 }
 
 /** KPIs (computed on the server) and the live list of the organizer's events. */
-export function OrganizerDashboard({ summary, canCreate, organizerStatus }: OrganizerDashboardProps) {
+export function OrganizerDashboard({ summary, canCreate, organizerStatus, connectStatus }: OrganizerDashboardProps) {
   const notice = useOrganizerStore((state) => state.notice);
   const clearNotice = useOrganizerStore((state) => state.clearNotice);
   const [filters, setFilters] = useState<EventFilters>(NO_FILTERS);
@@ -51,7 +54,11 @@ export function OrganizerDashboard({ summary, canCreate, organizerStatus }: Orga
     if (notice) clearNotice();
   }, [notice, clearNotice]);
 
-  const publishDeniedReason = organizerStatus ? (PUBLISH_DENIED_REASON[organizerStatus] ?? null) : null;
+  const connectIncomplete = connectStatus !== null && connectStatus !== "complete";
+  // Approval comes first, then payments (same order as the server's publish blockers).
+  const publishDeniedReason =
+    (organizerStatus ? PUBLISH_DENIED_REASON[organizerStatus] : undefined) ??
+    (connectIncomplete ? PUBLISH_BLOCKER_MESSAGES.connect_incomplete : null);
 
   const rows = events.data?.items ?? [];
 
@@ -70,6 +77,16 @@ export function OrganizerDashboard({ summary, canCreate, organizerStatus }: Orga
           <Button variant="ghost" size="icon" aria-label="Cerrar aviso" className="size-11" onClick={() => setShownNotice(null)}>
             <X aria-hidden="true" />
           </Button>
+        </div>
+      )}
+
+      {connectIncomplete && (
+        <div role="status" className="flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900">
+          <CircleAlert className="size-5 shrink-0" aria-hidden="true" />
+          <p className="min-w-0 flex-1">{PUBLISH_BLOCKER_MESSAGES.connect_incomplete}</p>
+          <Link href="/organizer/settings" className="shrink-0 font-semibold underline underline-offset-2">
+            Ir a configuración
+          </Link>
         </div>
       )}
 

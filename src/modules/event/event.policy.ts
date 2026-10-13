@@ -6,6 +6,7 @@ import type {
   PolicyActor,
   PolicyEvent,
   PublishBlocker,
+  PublishOrganizer,
   PublishZone,
   ZoneChangeError,
   ZoneChangeErrorCode,
@@ -25,6 +26,8 @@ import { can } from "@/modules/user/user.permissions";
  */
 
 export const PUBLISH_BLOCKER_MESSAGES: Record<PublishBlocker, string> = {
+  organizer_not_approved: "Tu perfil de organizador debe estar aprobado para publicar.",
+  connect_incomplete: "Configura tus pagos en Stripe para poder publicar eventos.",
   no_zones: "Agrega al menos una zona con precio.",
   zone_without_price: "Cada zona a la venta necesita un precio mayor que 0.",
   zone_without_capacity: "Cada zona de pie necesita una capacidad mayor que 0.",
@@ -65,14 +68,24 @@ export function canEditEvent(actor: PolicyActor, event: PolicyEvent, now: Date):
   return isModerator(actor) || (isOwner(actor, event) && ownerMayWrite(actor, event));
 }
 
-/** Only the approved owner publishes, and only a draft that has nothing left to fix. */
+/** The organizer side of publishing: approved profile and Stripe Connect onboarding complete. */
+export function canOrganizerPublish(actor: PolicyActor): boolean {
+  return actor.organizerStatus === "approved" && actor.stripeOnboardingStatus === "complete";
+}
+
+/** The organizer slice `getPublishBlockers` checks, taken from the actor. */
+export const toPublishOrganizer = (actor: PolicyActor): PublishOrganizer => ({
+  status: actor.organizerStatus,
+  stripeOnboardingStatus: actor.stripeOnboardingStatus,
+});
+
+/** Only the approved owner with Connect complete publishes, and only a draft that has nothing left to fix. */
 export function canPublishEvent(actor: PolicyActor, event: PolicyEvent, zones: PublishZone[], now: Date): boolean {
   return (
     isOwner(actor, event) &&
-    actor.organizerStatus === "approved" &&
     event.status === "draft" &&
     !isEventReadOnly(event, now) &&
-    getPublishBlockers({ startsAt: event.startsAt, zones }, now).length === 0
+    getPublishBlockers({ startsAt: event.startsAt, zones, organizer: toPublishOrganizer(actor) }, now).length === 0
   );
 }
 
@@ -158,11 +171,22 @@ export function checkZoneChanges(currentZones: ZoneState[], nextZones: EventZone
   return errors;
 }
 
-/** Why an event cannot be published yet (empty = ready). */
-export function getPublishBlockers(snapshot: { startsAt: Date; zones: PublishZone[] }, now: Date): PublishBlocker[] {
-  const { startsAt, zones } = snapshot;
+/**
+ * Why an event cannot be published yet (empty = ready). With `organizer` it also
+ * checks the organizer (approved, Connect complete), first; without it only the
+ * event: editing an already published event does not depend on Connect.
+ */
+export function getPublishBlockers(
+  snapshot: { startsAt: Date; zones: PublishZone[]; organizer?: PublishOrganizer },
+  now: Date,
+): PublishBlocker[] {
+  const { startsAt, zones, organizer } = snapshot;
   const blockers: PublishBlocker[] = [];
 
+  if (organizer) {
+    if (organizer.status !== "approved") blockers.push("organizer_not_approved");
+    if (organizer.stripeOnboardingStatus !== "complete") blockers.push("connect_incomplete");
+  }
   if (zones.length === 0) blockers.push("no_zones");
   if (zones.some((zone) => zone.priceCents <= 0)) blockers.push("zone_without_price");
   if (zones.some((zone) => zone.seatingType === "general_admission" && (zone.capacity ?? 0) <= 0)) {
