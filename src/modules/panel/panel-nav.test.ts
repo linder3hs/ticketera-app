@@ -14,7 +14,13 @@ describe("getNavSections", () => {
 
   it("shows Administración first, then Organizador, to admins and super admins", () => {
     expect(labels("admin")).toEqual(["Administración", "Organizador"]);
-    expect(labels("super_admin")).toEqual(["Administración", "Organizador"]);
+    expect(labels("super_admin")).toEqual(["Administración", "Plataforma", "Organizador"]);
+  });
+
+  it("shows Ajustes only to the super admin", () => {
+    expect(itemLabels("super_admin")).toContain("Ajustes");
+    expect(itemLabels("admin")).not.toContain("Ajustes");
+    expect(itemLabels("organizer")).not.toContain("Ajustes");
   });
 
   it("shows Configuración to organizers and above, not to customers", () => {

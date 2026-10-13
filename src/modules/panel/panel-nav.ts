@@ -1,4 +1,4 @@
-import { BarChart3, Building2, LayoutDashboard, Settings, Users } from "lucide-react";
+import { BarChart3, Building2, LayoutDashboard, Percent, Settings, Users } from "lucide-react";
 
 import type { PanelNavSection } from "@/modules/panel/panel.types";
 import { hasRole } from "@/modules/user/user.permissions";
@@ -17,6 +17,11 @@ const SECTIONS: readonly SectionConfig[] = [
       { href: "/admin/dashboard", label: "Dashboard", icon: BarChart3 },
       { href: "/admin/users", label: "Usuarios", icon: Users },
     ],
+  },
+  {
+    label: "Plataforma",
+    minRole: "super_admin",
+    items: [{ href: "/admin/settings", label: "Ajustes", icon: Percent }],
   },
   {
     label: "Organizador",
