@@ -1,5 +1,6 @@
 export * from "./enums";
 export * from "./event";
+export * from "./favorite";
 export * from "./identity";
 export * from "./order";
 export * from "./refund";
