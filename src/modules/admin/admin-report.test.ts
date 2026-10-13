@@ -40,6 +40,12 @@ describe("formatMetricValue", () => {
     expect(compact.length).toBeLessThan(full.length);
   });
 
+  it("keeps half-step axis ticks distinct when compact", () => {
+    const ticks = [100_000, 150_000, 200_000].map((cents) => formatMetricValue(cents, "cents", { compact: true }));
+
+    expect(new Set(ticks).size).toBe(ticks.length);
+  });
+
   it("abbreviates a large count when compact", () => {
     expect(formatMetricValue(25_000, "count", { compact: true })).not.toContain("000");
     expect(formatMetricValue(12, "count", { compact: true })).toBe("12");

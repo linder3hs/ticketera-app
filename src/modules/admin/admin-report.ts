@@ -22,7 +22,8 @@ const compactCurrencyFormat = new Intl.NumberFormat("es-PE", {
   style: "currency",
   currency: "PEN",
   notation: "compact",
-  maximumFractionDigits: 0,
+  // One decimal so half-steps on the Y axis (S/ 1.5 K) don't collapse into the next tick.
+  maximumFractionDigits: 1,
 });
 
 /** `count` → `"1,234"`; `cents` → soles (`"S/ 1,235"`). `compact` (chart ticks) abbreviates large values. */
