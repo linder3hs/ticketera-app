@@ -1,31 +1,15 @@
-import { QR_SIZE, buildQrCells } from "@/components/ui/qr-pattern";
+import { QR_QUIET_ZONE, buildQrMatrix } from "@/lib/qr";
 import { formatEventDateParts } from "@/modules/event/event.utils";
-import type { EventDetail } from "@/modules/event/event.types";
-import type { Order } from "@/modules/booking/booking.types";
+import type { MyOrder, MyOrderEvent, MyTicket } from "@/modules/booking/order.types";
 
-export type ExportEvent = Pick<EventDetail, "title" | "category" | "date" | "startsAt" | "venue" | "address" | "city">;
+export type ExportEvent = Pick<MyOrderEvent, "title" | "category" | "date" | "startsAt" | "venue" | "address" | "city">;
 
-export interface OrderTicket {
-  zoneName: string;
-  /** Numbered zones only, e.g. "Fila A · 4". */
-  seatLabel?: string;
-  /** Seed of the ticket's decorative QR. */
-  seed: number;
-}
-
-/** Assumed show length for the calendar entry: the mock has no end time. */
+/** Assumed show length for the calendar entry: there is no end time in the data. */
 const EVENT_DURATION_HOURS = 3;
 
-/** One ticket per seat in numbered zones, `quantity` tickets otherwise. */
-export function getOrderTickets(order: Order): OrderTicket[] {
-  const orderNumber = Number(order.id.replace(/\D/g, "")) || 1;
-  return order.lines
-    .flatMap((line): Omit<OrderTicket, "seed">[] =>
-      line.seats.length > 0
-        ? line.seats.map((seat) => ({ zoneName: line.zoneName, seatLabel: `Fila ${seat.row} · ${seat.number}` }))
-        : Array.from({ length: line.quantity }, () => ({ zoneName: line.zoneName })),
-    )
-    .map((ticket, index) => ({ ...ticket, seed: orderNumber * 31 + index }));
+/** Tickets that can still be used: only these get a QR and a PDF page. */
+export function getValidTickets(order: Pick<MyOrder, "tickets">): MyTicket[] {
+  return order.tickets.filter((ticket) => ticket.status === "valid");
 }
 
 /** Escapes TEXT values for iCalendar (RFC 5545 §3.3.11). */
@@ -54,21 +38,22 @@ function toIcsUtc(date: Date) {
 }
 
 /** An iCalendar file with the event, for "Agregar al calendario". */
-export function buildIcs(event: ExportEvent, order: Pick<Order, "id" | "count">, now = new Date()): string {
-  const tickets = order.count === 1 ? "1 entrada" : `${order.count} entradas`;
+export function buildIcs(event: ExportEvent, order: Pick<MyOrder, "code" | "tickets">, now = new Date()): string {
+  const count = order.tickets.length;
+  const tickets = count === 1 ? "1 entrada" : `${count} entradas`;
   const lines = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
     "PRODID:-//Ticketera//Entradas//ES",
     "CALSCALE:GREGORIAN",
     "BEGIN:VEVENT",
-    `UID:${order.id}@ticketera`,
+    `UID:${order.code}@ticketera`,
     `DTSTAMP:${toIcsUtc(now)}`,
     `DTSTART:${toIcsLocal(event.date, event.startsAt)}`,
     `DTEND:${toIcsLocal(event.date, event.startsAt, EVENT_DURATION_HOURS)}`,
     `SUMMARY:${escapeIcs(event.title)}`,
     `LOCATION:${escapeIcs(`${event.venue}, ${event.address}, ${event.city}`)}`,
-    `DESCRIPTION:${escapeIcs(`Pedido ${order.id} · ${tickets}. Muestra el QR de cada entrada en el ingreso.`)}`,
+    `DESCRIPTION:${escapeIcs(`Pedido ${order.code} · ${tickets}. Muestra el QR de cada entrada en el ingreso.`)}`,
     "END:VEVENT",
     "END:VCALENDAR",
   ];
@@ -95,7 +80,7 @@ export function downloadFile(fileName: string, data: BlobPart, type: string) {
   setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
-export function downloadIcs(event: ExportEvent, order: Pick<Order, "id" | "count">) {
+export function downloadIcs(event: ExportEvent, order: Pick<MyOrder, "code" | "tickets">) {
   downloadFile(`${toFileName(event.title)}.ics`, buildIcs(event, order), "text/calendar;charset=utf-8");
 }
 
@@ -108,10 +93,12 @@ function pdfText(text: string) {
  * A PDF with one ticket per page. `jspdf` is loaded on demand so it isn't
  * part of the page bundle.
  */
-export async function downloadTicketsPdf(event: ExportEvent, order: Order) {
+export async function downloadTicketsPdf(event: ExportEvent, order: MyOrder) {
+  const tickets = getValidTickets(order);
+  if (tickets.length === 0) return;
+
   const { jsPDF } = await import("jspdf");
   const doc = new jsPDF({ unit: "mm", format: "a5" });
-  const tickets = getOrderTickets(order);
   const date = formatEventDateParts(event.date).long;
   const width = doc.internal.pageSize.getWidth();
   const margin = 12;
@@ -152,8 +139,8 @@ export async function downloadTicketsPdf(event: ExportEvent, order: Order) {
     const details = [
       ["Zona", ticket.zoneName],
       ["Asiento", ticket.seatLabel ?? "Sin asiento asignado"],
-      ["Pedido", order.id],
-      ["Titular", order.buyerName],
+      ["Pedido", order.code],
+      ["Titular", ticket.holderName],
     ];
     details.forEach(([label, value], i) => {
       const x = margin + (i % 2) * ((width - margin * 2) / 2);
@@ -175,22 +162,27 @@ export async function downloadTicketsPdf(event: ExportEvent, order: Order) {
     doc.line(margin, y, width - margin, y);
     doc.setLineDashPattern([], 0);
 
+    // The same matrix as on screen, quiet zone included in `qrSize`.
+    const matrix = buildQrMatrix(ticket.code);
     const qrSize = 60;
-    const cell = qrSize / QR_SIZE;
+    const cell = qrSize / (matrix.length + QR_QUIET_ZONE * 2);
     const qrX = (width - qrSize) / 2;
     const qrY = y + 10;
     doc.setFillColor(24, 24, 27);
-    buildQrCells(ticket.seed).forEach((isOn, i) => {
-      if (isOn) doc.rect(qrX + (i % QR_SIZE) * cell, qrY + Math.floor(i / QR_SIZE) * cell, cell, cell, "F");
+    matrix.forEach((row, rowIndex) => {
+      row.forEach((isDark, colIndex) => {
+        if (!isDark) return;
+        doc.rect(qrX + (colIndex + QR_QUIET_ZONE) * cell, qrY + (rowIndex + QR_QUIET_ZONE) * cell, cell, cell, "F");
+      });
     });
 
     doc.setFontSize(9);
     doc.setTextColor(82, 82, 91);
-    doc.text("Muestra este código en el ingreso. Entrada de demostración, sin validez.", width / 2, qrY + qrSize + 8, {
+    doc.text("Muestra este código en el ingreso.", width / 2, qrY + qrSize + 8, {
       align: "center",
       maxWidth: width - margin * 2,
     });
   });
 
-  doc.save(`entradas-${order.id}.pdf`);
+  doc.save(`entradas-${order.code}.pdf`);
 }

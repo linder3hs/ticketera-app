@@ -1,57 +1,20 @@
-import type { Order } from "@/modules/booking/booking.types";
+import type { MyOrder } from "@/modules/booking/order.types";
+import { toMyOrders } from "@/modules/booking/order.utils";
+import { findOrderRow, findTicketRows, listTicketRows } from "@/modules/booking/services/order-data-service";
 
-/**
- * Sample orders shown in "Mis entradas" next to the ones paid in this
- * browser, so the screen isn't empty on a first visit.
- */
-const MOCK_ORDERS: Order[] = [
-  {
-    id: "TK-24817",
-    eventId: "evt-001",
-    lines: [{ zoneId: "general", zoneName: "Campo General", quantity: 2, amount: 900, seats: [] }],
-    count: 2,
-    total: 900,
-    currency: "PEN",
-    method: "card",
-    buyerName: "",
-    email: "",
-  },
-  {
-    id: "TK-24790",
-    eventId: "evt-004",
-    lines: [
-      {
-        zoneId: "platea",
-        zoneName: "Platea",
-        quantity: 1,
-        amount: 60,
-        seats: [{ id: "platea-F12", row: "F", number: 12, x: 0, y: 0, status: "available" }],
-      },
-    ],
-    count: 1,
-    total: 60,
-    currency: "PEN",
-    method: "card",
-    buyerName: "",
-    email: "",
-  },
-];
-
-/** Sample orders of the signed-in user (mock). */
-export async function getMyOrders(): Promise<Order[]> {
-  return MOCK_ORDERS;
+/** The orders with tickets of `userId`, newest paid first. Always scoped to that user. */
+export async function listMyOrders(userId: string): Promise<MyOrder[]> {
+  return toMyOrders(await listTicketRows(userId));
 }
 
 /**
- * Splits orders into upcoming (event today or later, soonest first) and past
- * (most recent first). Orders of unknown events are dropped.
+ * The order of `userId` with that code (`tickets: []` while it is still `pending`), or `null`.
+ * Someone else's order is indistinguishable from one that doesn't exist.
  */
-export function splitOrdersByDate(orders: Order[], eventDates: Record<string, string>, today: string) {
-  const known = orders.filter((order) => eventDates[order.eventId]);
-  const date = (order: Order) => eventDates[order.eventId];
+export async function findMyOrder(userId: string, code: string): Promise<MyOrder | null> {
+  const ticketRows = await findTicketRows(userId, code);
+  if (ticketRows.length > 0) return toMyOrders(ticketRows)[0];
 
-  return {
-    upcoming: known.filter((order) => date(order) >= today).sort((a, b) => date(a).localeCompare(date(b))),
-    past: known.filter((order) => date(order) < today).sort((a, b) => date(b).localeCompare(date(a))),
-  };
+  const orderRow = await findOrderRow(userId, code);
+  return orderRow ? toMyOrders([orderRow])[0] : null;
 }

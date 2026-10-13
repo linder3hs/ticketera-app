@@ -1,9 +1,9 @@
 import type { Event, EventCategory, EventDetail } from "@/modules/event/event.types";
 
 /**
- * Mock in-memory data that only feeds "Mis entradas" (`/my-tickets`),
- * `booking/services/venue-service.ts` and the DB seed. The landing, the
- * search and the event detail read the DB (`event-public-service.ts`).
+ * Mock in-memory data that only feeds `booking/services/venue-service.ts`
+ * and the DB seed (`seed-data.ts`). The landing, the search, the event
+ * detail and "Mis entradas" read the DB.
  *
  * Market assumption (validated with the user via the approved spec
  * `docs/specs/event-landing-page.md`): a mix of Peruvian cities (Lima,

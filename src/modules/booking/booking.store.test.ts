@@ -2,12 +2,12 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import {
   MAX_TICKETS_PER_ZONE,
-  createOrderId,
   getOrderLines,
   getOrderTotals,
+  migrateBookingState,
   useBookingStore,
 } from "@/modules/booking/booking.store";
-import type { OrderLine, Seat, Zone } from "@/modules/booking/booking.types";
+import type { Seat, Zone } from "@/modules/booking/booking.types";
 import { MAX_TICKETS_PER_ZONE as SCHEMA_MAX_TICKETS_PER_ZONE } from "@/modules/booking/reservation.schema";
 
 function seat(row: string, number: number, status: Seat["status"] = "available"): Seat {
@@ -35,7 +35,6 @@ const store = () => useBookingStore.getState();
 describe("booking.store", () => {
   beforeEach(() => {
     store().reset();
-    useBookingStore.setState({ orders: [] });
     store().init("evt-001", "field");
   });
 
@@ -157,47 +156,47 @@ describe("booking.store", () => {
     });
   });
 
-  describe("confirmOrder", () => {
-    it("saves an order with the given event and lines, and clears the selection", () => {
+  describe("reset", () => {
+    it("forgets the event and the whole selection", () => {
       store().setQuantity(FIELD, 2);
       store().toggleSeat(STAND, seat("A", 1));
-      const lines: OrderLine[] = [
-        { zoneId: "pit", zoneName: "Pit", quantity: 3, amount: 150, seats: [] },
-        { zoneId: "stand", zoneName: "Tribuna", quantity: 1, amount: 100, seats: [seat("B", 2)] },
-      ];
 
-      const order = store().confirmOrder(
-        {
-          eventId: "evt-reserved",
-          lines,
-          currency: "PEN",
-          method: "card",
-          buyerName: "Ana Pérez",
-          email: "ana@mail.com",
-        },
-        "TK-12345",
-      );
+      store().reset();
 
-      expect(order).toEqual({
-        id: "TK-12345",
-        eventId: "evt-reserved",
-        lines,
-        ...getOrderTotals(lines),
-        currency: "PEN",
-        method: "card",
-        buyerName: "Ana Pérez",
-        email: "ana@mail.com",
+      expect(store()).toMatchObject({ eventId: null, activeZoneId: null, seats: {}, quantities: {} });
+    });
+  });
+
+  describe("migrateBookingState", () => {
+    it("keeps the selection and drops the orders and the buyer data of a previous version", () => {
+      const stored = {
+        eventId: "evt-001",
+        activeZoneId: "stand",
+        seats: { stand: [seat("A", 1)] },
+        quantities: { field: 2 },
+        lastOrder: { id: "TK-12345", buyerName: "Ana Pérez", email: "ana@mail.com" },
+        orders: [{ id: "TK-12345", buyerName: "Ana Pérez", email: "ana@mail.com" }],
+      };
+
+      const migrated = migrateBookingState(stored);
+
+      expect(migrated).toEqual({
+        eventId: "evt-001",
+        activeZoneId: "stand",
+        seats: { stand: [seat("A", 1)] },
+        quantities: { field: 2 },
       });
-      expect(order).toMatchObject({ count: 4, total: 250 });
-      expect(store().lastOrder).toEqual(order);
-      expect(store().orders).toEqual([order]);
-      expect(store()).toMatchObject({ eventId: "evt-001", activeZoneId: "field", seats: {}, quantities: {} });
+      expect(migrated).not.toHaveProperty("lastOrder");
+      expect(migrated).not.toHaveProperty("orders");
     });
 
-    it("creates order ids with the TK-00000 format", () => {
-      expect(createOrderId()).toMatch(/^TK-\d{5}$/);
-      expect(createOrderId(() => 0)).toBe("TK-10000");
-      expect(createOrderId(() => 0.99999)).toBe("TK-99999");
+    it("falls back to an empty selection for null or values that are not objects", () => {
+      const empty = { eventId: null, activeZoneId: null, seats: {}, quantities: {} };
+      expect(migrateBookingState(null)).toEqual(empty);
+      expect(migrateBookingState(undefined)).toEqual(empty);
+      expect(migrateBookingState("garbage")).toEqual(empty);
+      expect(migrateBookingState(42)).toEqual(empty);
+      expect(migrateBookingState({})).toEqual(empty);
     });
   });
 

@@ -79,7 +79,7 @@ function EmptyState({ eventSlug, title, description }: { eventSlug: string; titl
  * reservation countdown and the order summary (both from the reservation).
  */
 export function CheckoutForm({ event, reservation, buyerDefaults }: CheckoutFormProps) {
-  // Waits for the persisted store (`confirmOrder` writes to it); this also keeps the clock-based timer out of the server render.
+  // Waits for the persisted store (the selection `reset` clears after paying); this also keeps the clock-based timer out of the server render.
   const hydrated = usePersistHydration(useBookingStore);
   const amountCents = amountToCents(getOrderTotals(reservation.lines).total);
 
@@ -105,7 +105,7 @@ export function CheckoutForm({ event, reservation, buyerDefaults }: CheckoutForm
 /** The form itself; it lives inside the `CardPaymentProvider` because the payment hook needs it. */
 function CheckoutFormBody({ event, reservation, buyerDefaults }: CheckoutFormProps) {
   const router = useRouter();
-  const confirmOrder = useBookingStore((state) => state.confirmOrder);
+  const reset = useBookingStore((state) => state.reset);
   const { pay, isReady } = useCheckoutPayment();
   const [values, setValues] = useState<Values>(() => ({ ...buyerDefaults, acceptTerms: false }));
   const [errors, setErrors] = useState<Partial<Record<BuyerField, string>>>({});
@@ -196,13 +196,10 @@ function CheckoutFormBody({ event, reservation, buyerDefaults }: CheckoutFormPro
       return;
     }
 
-    // Transitory until the payments webhook: the local confirmation uses the real order code.
-    confirmOrder(
-      { eventId: event.id, lines, currency: event.currency, method: "card", buyerName: buyer.fullName, email: buyer.email },
-      started.orderCode,
-    );
+    // The selection is now an order: clear it and let the confirmation read the order from the server.
+    reset();
     setIsPaid(true);
-    router.push(`/events/${event.slug}/confirmation`);
+    router.push(`/events/${event.slug}/confirmation?order=${encodeURIComponent(started.orderCode)}`);
   }
 
   return (

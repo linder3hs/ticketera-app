@@ -1,34 +1,24 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { Ticket } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { usePersistHydration } from "@/lib/use-persist-hydration";
+import { EventCover } from "@/modules/event/components/EventCover";
 import { formatEventDateParts } from "@/modules/event/event.utils";
-import type { EventDetail } from "@/modules/event/event.types";
-import { useBookingStore } from "@/modules/booking/booking.store";
-import type { Order } from "@/modules/booking/booking.types";
-import { splitOrdersByDate } from "@/modules/booking/services/order-service";
 import { TicketDetailCard } from "@/modules/booking/components/TicketDetailCard";
+import type { MyOrder } from "@/modules/booking/order.types";
+import { splitOrdersByDate } from "@/modules/booking/order.utils";
 
 interface MyTicketsProps {
-  /** Every event an order can point to, by id. */
-  events: Record<string, EventDetail>;
-  sampleOrders: Order[];
-  /** The signed-in user, shown as the buyer of the sample orders. */
-  buyer: { name: string; email: string };
+  /** The signed-in user's orders with tickets. */
+  orders: MyOrder[];
+  /** Today in Lima ("YYYY-MM-DD"), computed on the server. */
+  today: string;
 }
 
 type Tab = "upcoming" | "past";
-
-function todayIso() {
-  const now = new Date();
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-}
 
 function Notice({ icon, title, text, action }: { icon: ReactNode; title: string; text: string; action: ReactNode }) {
   return (
@@ -44,24 +34,12 @@ function Notice({ icon, title, text, action }: { icon: ReactNode; title: string;
 const ACTION_CLASS =
   "mt-2 flex h-12 items-center gap-2 rounded-[14px] bg-foreground px-5 text-[15px] font-semibold text-background focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50";
 
-/**
- * The signed-in user's orders: sample ones plus those paid in this browser,
- * split into upcoming and past, with the selected order's tickets.
- */
-export function MyTickets({ events, sampleOrders, buyer }: MyTicketsProps) {
-  const isBookingReady = usePersistHydration(useBookingStore);
-  const paidOrders = useBookingStore((state) => state.orders);
+/** The signed-in user's orders split into upcoming and past, with the selected order's tickets. */
+export function MyTickets({ orders, today }: MyTicketsProps) {
   const [tab, setTab] = useState<Tab>("upcoming");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  if (!isBookingReady) {
-    return <p className="py-16 text-center text-muted-foreground">Cargando tus entradas…</p>;
-  }
-
-  // The sample orders belong to whoever is signed in.
-  const orders = [...paidOrders, ...sampleOrders.map((order) => ({ ...order, buyerName: buyer.name, email: buyer.email }))];
-  const eventDates = Object.fromEntries(Object.values(events).map((event) => [event.id, event.date]));
-  const groups = splitOrdersByDate(orders, eventDates, todayIso());
+  const groups = splitOrdersByDate(orders, today);
   const list = groups[tab];
   const selected = list.find((order) => order.id === selectedId) ?? list[0];
 
@@ -111,9 +89,10 @@ export function MyTickets({ events, sampleOrders, buyer }: MyTicketsProps) {
         <div className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-[400px_minmax(0,1fr)] lg:items-start lg:gap-8">
           <ul aria-label="Pedidos" className="flex flex-col gap-3">
             {list.map((order) => {
-              const event = events[order.eventId];
+              const { event } = order;
               const isSelected = order.id === selected?.id;
-              const zones = [...new Set(order.lines.map((line) => line.zoneName))].join(", ");
+              const zones = [...new Set(order.tickets.map((ticket) => ticket.zoneName))].join(", ");
+              const count = order.tickets.length;
               return (
                 <li key={order.id}>
                   <button
@@ -126,7 +105,7 @@ export function MyTickets({ events, sampleOrders, buyer }: MyTicketsProps) {
                     )}
                   >
                     <span className="relative size-[72px] shrink-0 overflow-hidden rounded-[14px] bg-zinc-200">
-                      <Image src={event.imageUrl} alt="" fill sizes="72px" className="object-cover" />
+                      <EventCover src={event.imageUrl} alt="" sizes="72px" />
                     </span>
                     <span className="flex min-w-0 flex-col gap-0.5">
                       <span className="truncate text-base font-semibold">{event.title}</span>
@@ -134,7 +113,7 @@ export function MyTickets({ events, sampleOrders, buyer }: MyTicketsProps) {
                         {formatEventDateParts(event.date).short} · {event.city}
                       </span>
                       <span className="truncate text-[13px] font-medium text-primary">
-                        {order.count === 1 ? "1 entrada" : `${order.count} entradas`} · {zones}
+                        {count === 1 ? "1 entrada" : `${count} entradas`} · {zones}
                       </span>
                     </span>
                   </button>
@@ -143,7 +122,7 @@ export function MyTickets({ events, sampleOrders, buyer }: MyTicketsProps) {
             })}
           </ul>
 
-          {selected && <TicketDetailCard key={selected.id} event={events[selected.eventId]} order={selected} />}
+          {selected && <TicketDetailCard key={selected.id} event={selected.event} order={selected} />}
         </div>
       )}
     </div>
