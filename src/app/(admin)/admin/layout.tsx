@@ -1,0 +1,12 @@
+import type { ReactNode } from 'react';
+
+import { requireRole } from '@/modules/user/current-user';
+
+export default async function AdminLayout({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  await requireRole('admin');
+  return children;
+}

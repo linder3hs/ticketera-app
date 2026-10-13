@@ -2,15 +2,16 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
 import type { Order, OrderLine, PaymentMethod, Seat, Zone } from "@/modules/booking/booking.types";
+import { MAX_TICKETS_PER_ZONE } from "@/modules/booking/reservation.schema";
+import type { UnavailableTickets } from "@/modules/booking/reservation.types";
 
 export type { OrderLine };
-
-export const MAX_TICKETS_PER_ZONE = 6;
-/** How long tickets stay reserved once checkout starts. */
-export const RESERVATION_MS = 10 * 60 * 1000;
+export { MAX_TICKETS_PER_ZONE };
 
 export interface ConfirmOrderInput {
-  zones: Zone[];
+  eventId: string;
+  /** The reservation's lines: what the order pays for. */
+  lines: OrderLine[];
   currency: string;
   method: PaymentMethod;
   buyerName: string;
@@ -29,8 +30,6 @@ interface BookingState {
   seats: Record<string, Seat[]>;
   /** Ticket count of each standing zone. */
   quantities: Record<string, number>;
-  /** Epoch ms when the checkout reservation ends; `null` until checkout starts. */
-  reservationExpiresAt: number | null;
   /** Last paid order, shown by the confirmation page. */
   lastOrder: Order | null;
   /** Every order paid in this browser, newest first ("Mis entradas"). */
@@ -42,14 +41,14 @@ interface BookingState {
   toggleSeat: (zone: Zone, seat: Seat) => void;
   removeSeat: (zoneId: string, seatId: string) => void;
   setQuantity: (zone: Zone, quantity: number) => void;
-  /** Starts the reservation countdown unless one is already running. */
-  startReservation: (now?: number) => void;
-  /** Turns the selection into `lastOrder` and clears it. */
+  /** Drops what a failed hold found unavailable: those seats, and the quantity of those standing zones. */
+  pruneSelection: (unavailable: UnavailableTickets) => void;
+  /** Turns the reservation's lines into `lastOrder` and clears the selection. */
   confirmOrder: (input: ConfirmOrderInput, orderId?: string) => Order;
   reset: () => void;
 }
 
-const EMPTY_SELECTION = { activeZoneId: null, seats: {}, quantities: {}, reservationExpiresAt: null };
+const EMPTY_SELECTION = { activeZoneId: null, seats: {}, quantities: {} };
 
 export const useBookingStore = create<BookingState>()(
   persist(
@@ -88,16 +87,23 @@ export const useBookingStore = create<BookingState>()(
         set({ quantities: { ...get().quantities, [zone.id]: clamped } });
       },
 
-      startReservation: (now = Date.now()) => {
-        if (get().reservationExpiresAt === null) set({ reservationExpiresAt: now + RESERVATION_MS });
+      pruneSelection: ({ seatIds, zoneIds }) => {
+        const unavailableSeats = new Set(seatIds);
+        const seats = Object.fromEntries(
+          Object.entries(get().seats).map(([zoneId, selected]) => [
+            zoneId,
+            selected.filter((seat) => !unavailableSeats.has(seat.id)),
+          ]),
+        );
+        const quantities = { ...get().quantities };
+        for (const zoneId of zoneIds) delete quantities[zoneId];
+        set({ seats, quantities });
       },
 
-      confirmOrder: ({ zones, currency, method, buyerName, email }, orderId = createOrderId()) => {
-        const { eventId, activeZoneId } = get();
-        const lines = getOrderLines(zones, get());
+      confirmOrder: ({ eventId, lines, currency, method, buyerName, email }, orderId = createOrderId()) => {
         const order: Order = {
           id: orderId,
-          eventId: eventId ?? "",
+          eventId,
           lines,
           ...getOrderTotals(lines),
           currency,
@@ -105,7 +111,7 @@ export const useBookingStore = create<BookingState>()(
           buyerName,
           email,
         };
-        set({ ...EMPTY_SELECTION, activeZoneId, lastOrder: order, orders: [order, ...get().orders] });
+        set({ ...EMPTY_SELECTION, activeZoneId: get().activeZoneId, lastOrder: order, orders: [order, ...get().orders] });
         return order;
       },
 
@@ -116,12 +122,11 @@ export const useBookingStore = create<BookingState>()(
       storage: createJSONStorage(() => localStorage),
       // Loaded after mount (see usePersistHydration) to match the server render.
       skipHydration: true,
-      partialize: ({ eventId, activeZoneId, seats, quantities, reservationExpiresAt, lastOrder, orders }) => ({
+      partialize: ({ eventId, activeZoneId, seats, quantities, lastOrder, orders }) => ({
         eventId,
         activeZoneId,
         seats,
         quantities,
-        reservationExpiresAt,
         lastOrder,
         orders,
       }),

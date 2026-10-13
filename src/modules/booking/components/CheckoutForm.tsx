@@ -1,68 +1,40 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronDown, Lock, Smartphone, Store, TicketX } from "lucide-react";
+import { ChevronDown, Lock, TicketX } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatEventPrice } from "@/modules/event/event.utils";
 import { usePersistHydration } from "@/lib/use-persist-hydration";
-import { getOrderLines, getOrderTotals, useBookingStore } from "@/modules/booking/booking.store";
-import type { PaymentMethod, Zone } from "@/modules/booking/booking.types";
-import { DOCUMENT_TYPES, getCheckoutErrors, type CheckoutField } from "@/modules/booking/checkout.schema";
+import { startCheckoutAction } from "@/modules/booking/actions";
+import { getOrderTotals, useBookingStore } from "@/modules/booking/booking.store";
+import { DOCUMENT_TYPES, DOCUMENT_TYPE_LABELS, getBuyerErrors, type BuyerField } from "@/modules/booking/buyer.schema";
+import type { BuyerDefaults } from "@/modules/booking/checkout.types";
 import { CheckoutEventHeader, CheckoutSummary, type CheckoutEvent } from "@/modules/booking/components/CheckoutSummary";
-import { PaymentMethodPicker } from "@/modules/booking/components/PaymentMethodPicker";
 import { ReservationTimer } from "@/modules/booking/components/ReservationTimer";
+import type { ActiveReservation } from "@/modules/booking/reservation.types";
+import { CardPaymentElement, CardPaymentProvider } from "@/modules/payment/components/CardPaymentProvider";
+import { useCheckoutPayment } from "@/modules/payment/hooks/use-checkout-payment";
+import { PAYMENT_MESSAGES, amountToCents } from "@/modules/payment/payment.utils";
 
 interface CheckoutFormProps {
   event: CheckoutEvent;
-  zones: Zone[];
+  /** The user's live reservation for `event`: what is paid and until when. */
+  reservation: ActiveReservation;
+  /** What the user's profile already has, to prefill the buyer data. */
+  buyerDefaults: BuyerDefaults;
 }
 
-type Values = {
-  fullName: string;
-  email: string;
-  documentType: (typeof DOCUMENT_TYPES)[number];
-  documentNumber: string;
-  phone: string;
-  method: PaymentMethod;
-  cardNumber: string;
-  cardExpiry: string;
-  cardCvv: string;
-  cardName: string;
-  acceptTerms: boolean;
-};
-
-const INITIAL_VALUES: Values = {
-  fullName: "",
-  email: "",
-  documentType: "DNI",
-  documentNumber: "",
-  phone: "",
-  method: "card",
-  cardNumber: "",
-  cardExpiry: "",
-  cardCvv: "",
-  cardName: "",
-  acceptTerms: false,
-};
+type Values = BuyerDefaults & { acceptTerms: boolean };
 
 /** Focus order for the first invalid field. */
-const FIELD_ORDER: CheckoutField[] = [
-  "fullName",
-  "email",
-  "documentNumber",
-  "phone",
-  "cardNumber",
-  "cardExpiry",
-  "cardCvv",
-  "cardName",
-  "acceptTerms",
-];
+const FIELD_ORDER: BuyerField[] = ["fullName", "email", "documentNumber", "phone", "acceptTerms"];
 
 const FIELD_CLASS = "h-[52px] rounded-[14px] border-zinc-300 bg-background px-4 text-base md:text-[15px]";
 const CARD_CLASS = "flex flex-col gap-4 rounded-[20px] border border-border bg-card px-4 py-5 lg:gap-5 lg:rounded-3xl lg:p-7";
@@ -84,7 +56,7 @@ function PayButton({ label, disabled, className }: { label: string; disabled: bo
   );
 }
 
-function EmptyState({ eventId, title, description }: { eventId: string; title: string; description: string }) {
+function EmptyState({ eventSlug, title, description }: { eventSlug: string; title: string; description: string }) {
   return (
     <div className="mx-auto flex max-w-lg flex-col items-center gap-3 px-4 py-16 text-center">
       <span className="flex size-14 items-center justify-center rounded-[18px] bg-indigo-50 text-primary">
@@ -93,7 +65,7 @@ function EmptyState({ eventId, title, description }: { eventId: string; title: s
       <h1 className="text-xl font-semibold">{title}</h1>
       <p className="text-[15px] text-muted-foreground">{description}</p>
       <Link
-        href={`/events/${eventId}/tickets`}
+        href={`/events/${eventSlug}/tickets`}
         className="mt-2 flex h-12 items-center rounded-[14px] bg-foreground px-5 text-[15px] font-semibold text-background focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
       >
         Elegir entradas
@@ -103,68 +75,77 @@ function EmptyState({ eventId, title, description }: { eventId: string; title: s
 }
 
 /**
- * Step 2 of the purchase: buyer data, payment method and terms, with the
- * reservation countdown and the order summary. A valid submit simulates the
- * payment and opens the confirmation.
+ * Step 2 of the purchase: buyer data, card payment (Stripe Payment Element) and terms, with the
+ * reservation countdown and the order summary (both from the reservation).
  */
-export function CheckoutForm({ event, zones }: CheckoutFormProps) {
-  const router = useRouter();
-  const store = useBookingStore();
+export function CheckoutForm({ event, reservation, buyerDefaults }: CheckoutFormProps) {
+  // Waits for the persisted store (`confirmOrder` writes to it); this also keeps the clock-based timer out of the server render.
   const hydrated = usePersistHydration(useBookingStore);
-  const [values, setValues] = useState<Values>(INITIAL_VALUES);
-  const [errors, setErrors] = useState<Partial<Record<CheckoutField, string>>>({});
+  const amountCents = amountToCents(getOrderTotals(reservation.lines).total);
+
+  if (!hydrated) return <p className="px-4 py-16 text-center text-muted-foreground">Cargando tu compra…</p>;
+  // Stripe doesn't charge 0, and `Elements` doesn't accept it.
+  if (amountCents <= 0) {
+    return (
+      <EmptyState
+        eventSlug={event.slug}
+        title="No hay nada que pagar"
+        description="Esta reserva no tiene un importe que cobrar. Elige otras entradas para continuar."
+      />
+    );
+  }
+
+  return (
+    <CardPaymentProvider amountCents={amountCents} currency={event.currency}>
+      <CheckoutFormBody event={event} reservation={reservation} buyerDefaults={buyerDefaults} />
+    </CardPaymentProvider>
+  );
+}
+
+/** The form itself; it lives inside the `CardPaymentProvider` because the payment hook needs it. */
+function CheckoutFormBody({ event, reservation, buyerDefaults }: CheckoutFormProps) {
+  const router = useRouter();
+  const confirmOrder = useBookingStore((state) => state.confirmOrder);
+  const { pay, isReady } = useCheckoutPayment();
+  const [values, setValues] = useState<Values>(() => ({ ...buyerDefaults, acceptTerms: false }));
+  const [errors, setErrors] = useState<Partial<Record<BuyerField, string>>>({});
   const [wasSubmitted, setWasSubmitted] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPaid, setIsPaid] = useState(false);
   const [isExpired, setIsExpired] = useState(false);
   const [isSummaryOpen, setIsSummaryOpen] = useState(false);
 
-  const isCurrent = store.eventId === event.id;
-  const lines = isCurrent ? getOrderLines(zones, store) : [];
+  const { lines } = reservation;
   const { count, total } = getOrderTotals(lines);
-  const { startReservation, reset } = store;
-  const hasTickets = count > 0;
 
-  useEffect(() => {
-    if (hasTickets) startReservation();
-  }, [hasTickets, startReservation]);
+  // The selection stays in the store, ready to hold it again.
+  const handleExpire = useCallback(() => setIsExpired(true), []);
 
-  const handleExpire = useCallback(() => {
-    setIsExpired(true);
-    reset();
-  }, [reset]);
-
-  if (!hydrated) return <p className="px-4 py-16 text-center text-muted-foreground">Cargando tu compra…</p>;
   if (isPaid) return <p className="px-4 py-16 text-center text-muted-foreground">Procesando tu pago…</p>;
-  if (isExpired) {
+  // A payment in flight (e.g. a 3DS modal) is not interrupted: the expired state shows if it fails.
+  if (isExpired && !isSubmitting) {
     return (
       <EmptyState
-        eventId={event.id}
+        eventSlug={event.slug}
         title="Tu reserva expiró"
         description="Liberamos tus entradas porque pasaron 10 minutos. Vuelve a elegirlas para continuar."
       />
     );
   }
-  if (!hasTickets) {
-    return (
-      <EmptyState
-        eventId={event.id}
-        title="Todavía no elegiste entradas"
-        description="Elige tus entradas para continuar con el pago."
-      />
-    );
-  }
 
   const totalLabel = formatEventPrice(total, event.currency);
-  const payLabel = `Pagar ${totalLabel}`;
+  const payLabel = isSubmitting ? "Procesando…" : `Pagar ${totalLabel}`;
+  const isPayDisabled = !values.acceptTerms || isSubmitting || !isReady;
 
   function update<K extends keyof Values>(key: K, value: Values[K]) {
     const next = { ...values, [key]: value };
     setValues(next);
     // After the first submit, errors follow the user's edits.
-    if (wasSubmitted) setErrors(getCheckoutErrors(next));
+    if (wasSubmitted) setErrors(getBuyerErrors(next));
   }
 
-  function inputProps(field: CheckoutField) {
+  function inputProps(field: BuyerField) {
     return {
       id: field,
       name: field,
@@ -174,10 +155,11 @@ export function CheckoutForm({ event, zones }: CheckoutFormProps) {
     };
   }
 
-  function handleSubmit(formEvent: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(formEvent: FormEvent<HTMLFormElement>) {
     formEvent.preventDefault();
+    if (isSubmitting) return;
     setWasSubmitted(true);
-    const nextErrors = getCheckoutErrors(values);
+    const nextErrors = getBuyerErrors(values);
     setErrors(nextErrors);
 
     const firstInvalid = FIELD_ORDER.find((field) => nextErrors[field]);
@@ -186,15 +168,41 @@ export function CheckoutForm({ event, zones }: CheckoutFormProps) {
       return;
     }
 
-    store.confirmOrder({
-      zones,
-      currency: event.currency,
-      method: values.method,
-      buyerName: values.fullName.trim(),
+    const buyer = {
+      fullName: values.fullName.trim(),
       email: values.email.trim(),
+      documentType: values.documentType,
+      documentNumber: values.documentNumber.trim(),
+      phone: values.phone.trim(),
+    };
+    const started: { orderCode?: string } = {};
+
+    setPaymentError(null);
+    setIsSubmitting(true);
+    const outcome = await pay({
+      startCheckout: async () => {
+        const result = await startCheckoutAction({ slug: event.slug, ...buyer, acceptTerms: true });
+        if (!result.ok) return result;
+        started.orderCode = result.data.orderCode;
+        return { ok: true, payment: result.data.payment };
+      },
+      returnUrl: `${window.location.origin}/events/${event.slug}/confirmation`,
+      billing: { name: buyer.fullName, email: buyer.email, phone: buyer.phone },
     });
+
+    if (!outcome.ok || !started.orderCode) {
+      setPaymentError(outcome.ok ? PAYMENT_MESSAGES.generic : outcome.error);
+      setIsSubmitting(false);
+      return;
+    }
+
+    // Transitory until the payments webhook: the local confirmation uses the real order code.
+    confirmOrder(
+      { eventId: event.id, lines, currency: event.currency, method: "card", buyerName: buyer.fullName, email: buyer.email },
+      started.orderCode,
+    );
     setIsPaid(true);
-    router.push(`/events/${event.id}/confirmation`);
+    router.push(`/events/${event.slug}/confirmation`);
   }
 
   return (
@@ -203,9 +211,7 @@ export function CheckoutForm({ event, zones }: CheckoutFormProps) {
       onSubmit={handleSubmit}
       className="mx-auto flex max-w-7xl flex-col gap-4 p-4 md:px-6 lg:gap-6 lg:pt-6 lg:pb-20"
     >
-      {store.reservationExpiresAt && (
-        <ReservationTimer expiresAt={store.reservationExpiresAt} onExpire={handleExpire} />
-      )}
+      <ReservationTimer expiresAt={Date.parse(reservation.expiresAt)} onExpire={handleExpire} />
 
       <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,1fr)_420px] lg:items-start lg:gap-8">
         <div className="flex flex-col gap-4 lg:gap-6">
@@ -271,22 +277,24 @@ export function CheckoutForm({ event, zones }: CheckoutFormProps) {
               </FormField>
               <FormField id="documentNumber" label="Documento de identidad" error={errors.documentNumber}>
                 <div className="flex gap-2">
-                  <select
-                    aria-label="Tipo de documento"
+                  <Select
                     value={values.documentType}
-                    onChange={(e) => update("documentType", e.target.value as Values["documentType"])}
-                    className={cn(
-                      FIELD_CLASS,
-                      "w-[104px] shrink-0 cursor-pointer border px-2.5 outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 lg:w-[110px]",
-                    )}
+                    onValueChange={(next) => update("documentType", next as Values["documentType"])}
                   >
-                    {DOCUMENT_TYPES.map((type) => (
-                      <option key={type}>{type}</option>
-                    ))}
-                  </select>
+                    <SelectTrigger aria-label="Tipo de documento" className={cn(FIELD_CLASS, "w-[104px] shrink-0 px-2.5 py-0 lg:w-[110px]")}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {DOCUMENT_TYPES.map((type) => (
+                        <SelectItem key={type} value={type}>
+                          {DOCUMENT_TYPE_LABELS[type]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <Input
                     {...inputProps("documentNumber")}
-                    inputMode={values.documentType === "DNI" ? "numeric" : "text"}
+                    inputMode={values.documentType === "dni" ? "numeric" : "text"}
                     placeholder="Número"
                     value={values.documentNumber}
                     onChange={(e) => update("documentNumber", e.target.value)}
@@ -309,65 +317,11 @@ export function CheckoutForm({ event, zones }: CheckoutFormProps) {
           </section>
 
           <section className={CARD_CLASS}>
-            <h2 className="text-lg font-semibold lg:text-xl">Método de pago</h2>
-            <PaymentMethodPicker value={values.method} onChange={(method) => update("method", method)} />
-
-            {values.method === "card" && (
-              <div className="grid grid-cols-2 gap-3 gap-y-4 lg:grid-cols-4 lg:gap-x-5 lg:gap-y-[18px]">
-                <FormField id="cardNumber" label="Número de tarjeta" error={errors.cardNumber} className="col-span-2">
-                  <Input
-                    {...inputProps("cardNumber")}
-                    inputMode="numeric"
-                    autoComplete="cc-number"
-                    placeholder="0000 0000 0000 0000"
-                    value={values.cardNumber}
-                    onChange={(e) => update("cardNumber", e.target.value)}
-                    className={FIELD_CLASS}
-                  />
-                </FormField>
-                <FormField id="cardExpiry" label="Vencimiento" error={errors.cardExpiry}>
-                  <Input
-                    {...inputProps("cardExpiry")}
-                    autoComplete="cc-exp"
-                    placeholder="MM/AA"
-                    value={values.cardExpiry}
-                    onChange={(e) => update("cardExpiry", e.target.value)}
-                    className={FIELD_CLASS}
-                  />
-                </FormField>
-                <FormField id="cardCvv" label="CVV" error={errors.cardCvv}>
-                  <Input
-                    {...inputProps("cardCvv")}
-                    inputMode="numeric"
-                    autoComplete="cc-csc"
-                    placeholder="3 o 4 dígitos"
-                    value={values.cardCvv}
-                    onChange={(e) => update("cardCvv", e.target.value)}
-                    className={FIELD_CLASS}
-                  />
-                </FormField>
-                <FormField id="cardName" label="Nombre en la tarjeta" error={errors.cardName} className="col-span-2 lg:col-span-4">
-                  <Input
-                    {...inputProps("cardName")}
-                    autoComplete="cc-name"
-                    placeholder="Como aparece en la tarjeta"
-                    value={values.cardName}
-                    onChange={(e) => update("cardName", e.target.value)}
-                    className={FIELD_CLASS}
-                  />
-                </FormField>
-              </div>
-            )}
-            {values.method !== "card" && (
-              <p className="flex items-start gap-3 rounded-[14px] bg-indigo-50 p-4 text-sm leading-normal text-indigo-800 lg:items-center lg:gap-3.5 lg:rounded-2xl lg:px-5 lg:py-[18px] lg:text-[15px]">
-                {values.method === "yape" ? (
-                  <Smartphone className="size-5 shrink-0" aria-hidden="true" />
-                ) : (
-                  <Store className="size-5 shrink-0" aria-hidden="true" />
-                )}
-                {values.method === "yape"
-                  ? "Al continuar te mostraremos un código QR para pagar desde tu app de Yape."
-                  : "Generaremos un código de pago para que pagues en agentes, bodegas o tu banca móvil."}
+            <h2 className="text-lg font-semibold lg:text-xl">Pago con tarjeta</h2>
+            <CardPaymentElement />
+            {paymentError && (
+              <p role="alert" className="text-[13px] font-medium text-destructive">
+                {paymentError}
               </p>
             )}
           </section>
@@ -413,7 +367,7 @@ export function CheckoutForm({ event, zones }: CheckoutFormProps) {
             <span className="text-[15px] font-medium">Total</span>
             <span className="text-[28px] font-bold tracking-tight tabular-nums">{totalLabel}</span>
           </div>
-          <PayButton label={payLabel} disabled={!values.acceptTerms} className="h-14 rounded-2xl text-base" />
+          <PayButton label={payLabel} disabled={isPayDisabled} className="h-14 rounded-2xl text-base" />
           {!values.acceptTerms && (
             <p className="-mt-2 text-center text-[13px] text-muted-foreground">Acepta los términos para continuar.</p>
           )}
@@ -421,7 +375,12 @@ export function CheckoutForm({ event, zones }: CheckoutFormProps) {
       </div>
 
       <div className="fixed inset-x-0 bottom-0 z-30 flex flex-col gap-2 border-t border-border bg-background px-4 pt-3 pb-5 shadow-[0_-12px_24px_-18px_rgba(24,24,27,0.35)] lg:hidden">
-        <PayButton label={payLabel} disabled={!values.acceptTerms} className="h-[54px] rounded-2xl text-base" />
+        {paymentError && (
+          <p role="alert" className="text-center text-[13px] font-medium text-destructive">
+            {paymentError}
+          </p>
+        )}
+        <PayButton label={payLabel} disabled={isPayDisabled} className="h-[54px] rounded-2xl text-base" />
         {!values.acceptTerms && (
           <p className="text-center text-xs text-muted-foreground">Acepta los términos para continuar.</p>
         )}

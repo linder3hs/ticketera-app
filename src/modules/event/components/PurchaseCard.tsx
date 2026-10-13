@@ -9,7 +9,7 @@ import type { Event } from "@/modules/event/event.types";
 import type { Zone } from "@/modules/booking/booking.types";
 
 interface PurchaseCardProps {
-  event: Pick<Event, "id" | "priceFrom" | "currency" | "status">;
+  event: Pick<Event, "slug" | "priceFrom" | "currency" | "status">;
   zones: Zone[];
 }
 
@@ -24,7 +24,7 @@ function BuyButton({ event, label, className }: { event: PurchaseCardProps["even
 
   return (
     <Link
-      href={`/events/${event.id}/tickets`}
+      href={`/events/${event.slug}/tickets`}
       className={cn(buttonVariants({ variant: "cta" }), "cursor-pointer gap-2 font-semibold", className)}
     >
       {label}

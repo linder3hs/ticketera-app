@@ -1,13 +1,9 @@
-import { filterEvents, sortEvents } from "@/modules/event/event-search";
-import type {
-  Event,
-  EventCategory,
-  EventDetail,
-  EventSearchFilters,
-} from "@/modules/event/event.types";
+import type { Event, EventCategory, EventDetail } from "@/modules/event/event.types";
 
 /**
- * Mock in-memory data for the event landing page.
+ * Mock in-memory data that only feeds "Mis entradas" (`/my-tickets`),
+ * `booking/services/venue-service.ts` and the DB seed. The landing, the
+ * search and the event detail read the DB (`event-public-service.ts`).
  *
  * Market assumption (validated with the user via the approved spec
  * `docs/specs/event-landing-page.md`): a mix of Peruvian cities (Lima,
@@ -19,6 +15,7 @@ import type {
 const EVENTS: Event[] = [
   {
     id: "evt-001",
+    slug: "bad-bunny-world-tour",
     title: "Bad Bunny — World Tour",
     category: "Conciertos",
     imageUrl:
@@ -34,6 +31,7 @@ const EVENTS: Event[] = [
   },
   {
     id: "evt-002",
+    slug: "festival-vive-latino-lima",
     title: "Festival Vive Latino Lima",
     category: "Festivales",
     imageUrl:
@@ -49,6 +47,7 @@ const EVENTS: Event[] = [
   },
   {
     id: "evt-003",
+    slug: "clasico-peruano-universitario-vs-alianza-lima",
     title: "Clásico Peruano: Universitario vs. Alianza Lima",
     category: "Deportes",
     imageUrl:
@@ -64,6 +63,7 @@ const EVENTS: Event[] = [
   },
   {
     id: "evt-004",
+    slug: "romeo-y-julieta-obra-de-teatro",
     title: "Romeo y Julieta — Obra de Teatro",
     category: "Teatro",
     imageUrl:
@@ -79,6 +79,7 @@ const EVENTS: Event[] = [
   },
   {
     id: "evt-005",
+    slug: "feria-familiar-de-verano",
     title: "Feria Familiar de Verano",
     category: "Familiar",
     imageUrl:
@@ -94,6 +95,7 @@ const EVENTS: Event[] = [
   },
   {
     id: "evt-006",
+    slug: "coldplay-music-of-the-spheres-world-tour",
     title: "Coldplay — Music of the Spheres World Tour",
     category: "Conciertos",
     imageUrl:
@@ -109,6 +111,7 @@ const EVENTS: Event[] = [
   },
   {
     id: "evt-007",
+    slug: "nba-global-games-exhibicion-de-basquet",
     title: "NBA Global Games — Exhibición de Básquet",
     category: "Deportes",
     imageUrl:
@@ -124,6 +127,7 @@ const EVENTS: Event[] = [
   },
   {
     id: "evt-008",
+    slug: "festival-electronico-ultra-lima",
     title: "Festival Electrónico Ultra Lima",
     category: "Festivales",
     imageUrl:
@@ -139,6 +143,7 @@ const EVENTS: Event[] = [
   },
   {
     id: "evt-009",
+    slug: "concierto-sinfonico-de-ano-nuevo",
     title: "Concierto Sinfónico de Año Nuevo",
     category: "Conciertos",
     imageUrl:
@@ -154,6 +159,7 @@ const EVENTS: Event[] = [
   },
   {
     id: "evt-010",
+    slug: "circo-de-las-estrellas",
     title: "Circo de las Estrellas",
     category: "Familiar",
     imageUrl:
@@ -255,24 +261,17 @@ const EVENT_DETAILS: Record<string, EventDetailFields> = {
   },
 };
 
+/** Ids are the category slugs, the same ones the seed writes to the DB. */
 const CATEGORIES: EventCategory[] = [
-  { id: "cat-conciertos", label: "Conciertos", icon: "Music" },
-  { id: "cat-deportes", label: "Deportes", icon: "Trophy" },
-  { id: "cat-teatro", label: "Teatro", icon: "Theater" },
-  { id: "cat-festivales", label: "Festivales", icon: "PartyPopper" },
-  { id: "cat-familiar", label: "Familiar", icon: "Users" },
-  { id: "cat-cine", label: "Cine", icon: "Film" },
-  { id: "cat-comedia", label: "Comedia", icon: "Mic2" },
-  { id: "cat-arte", label: "Arte y Exposiciones", icon: "Palette" },
+  { id: "conciertos", label: "Conciertos", icon: "Music" },
+  { id: "deportes", label: "Deportes", icon: "Trophy" },
+  { id: "teatro", label: "Teatro", icon: "Theater" },
+  { id: "festivales", label: "Festivales", icon: "PartyPopper" },
+  { id: "familiar", label: "Familiar", icon: "Users" },
+  { id: "cine", label: "Cine", icon: "Film" },
+  { id: "comedia", label: "Comedia", icon: "Mic2" },
+  { id: "arte", label: "Arte y Exposiciones", icon: "Palette" },
 ];
-
-/**
- * Returns only the events flagged as `featured` (for the landing page
- * carousel).
- */
-export async function getFeaturedEvents(): Promise<Event[]> {
-  return EVENTS.filter((event) => event.featured);
-}
 
 /**
  * Returns the events for the "upcoming events" grid, sorted by date
@@ -300,31 +299,6 @@ export async function getEventById(id: string): Promise<EventDetail | undefined>
   const details = EVENT_DETAILS[id];
 
   return event && details ? { ...event, ...details } : undefined;
-}
-
-/**
- * Returns up to `limit` events to suggest next to `id`: same category first,
- * then the rest by date. Never includes the event itself.
- */
-export async function getRelatedEvents(id: string, limit = 4): Promise<Event[]> {
-  const current = EVENTS.find((event) => event.id === id);
-  const others = EVENTS.filter((event) => event.id !== id).sort((a, b) =>
-    a.date.localeCompare(b.date),
-  );
-  const sameCategory = others.filter((event) => event.category === current?.category);
-  const rest = others.filter((event) => event.category !== current?.category);
-
-  return [...sameCategory, ...rest].slice(0, limit);
-}
-
-/** Events matching the search page filters, in the requested order. */
-export async function searchEvents(filters: EventSearchFilters): Promise<Event[]> {
-  return sortEvents(filterEvents(EVENTS, filters, CATEGORIES), filters.sort);
-}
-
-/** Cities with events, alphabetically. */
-export async function getCities(): Promise<string[]> {
-  return [...new Set(EVENTS.map((event) => event.city))].sort((a, b) => a.localeCompare(b, "es"));
 }
 
 /** Returns the list of event categories shown as filter chips. */

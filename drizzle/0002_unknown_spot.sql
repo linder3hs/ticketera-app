@@ -1,0 +1,1 @@
+ALTER TABLE "organizer" ADD CONSTRAINT "organizer_stripe_account_id_unique" UNIQUE("stripe_account_id");

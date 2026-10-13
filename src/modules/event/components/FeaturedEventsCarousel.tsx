@@ -8,6 +8,7 @@ import {
   Calendar,
   ChevronLeft,
   ChevronRight,
+  ImageIcon,
   MapPin,
   Pause,
   Play,
@@ -71,6 +72,7 @@ export function FeaturedEventsCarousel({ events }: FeaturedEventsCarouselProps) 
   const current = events[index];
   if (!current) return null;
 
+  const isSoldOut = current.status === "sold-out";
   const goTo = (next: number) => setIndex((next + count) % count);
 
   return (
@@ -81,22 +83,40 @@ export function FeaturedEventsCarousel({ events }: FeaturedEventsCarouselProps) 
     >
       <div className="flex flex-col overflow-hidden rounded-[28px] bg-indigo-950 lg:grid lg:h-[520px] lg:grid-cols-[520px_minmax(0,1fr)] lg:rounded-[32px]">
         <div className="relative h-[230px] bg-indigo-900 sm:h-[340px] lg:order-2 lg:h-auto">
-          {events.map((event, i) => (
-            <Image
-              key={event.id}
-              src={event.imageUrl}
-              alt={event.imageAlt}
-              aria-hidden={i !== index}
-              fill
-              sizes="(min-width: 1024px) 760px, 100vw"
-              loading={i === 0 ? "eager" : undefined}
-              fetchPriority={i === 0 ? "high" : undefined}
-              className={cn(
-                "object-cover transition-opacity duration-700 motion-reduce:transition-none",
-                i === index ? "opacity-100" : "opacity-0",
-              )}
-            />
-          ))}
+          {events.map((event, i) => {
+            const fadeClass = cn(
+              "transition-opacity duration-700 motion-reduce:transition-none",
+              i === index ? "opacity-100" : "opacity-0",
+            );
+            // `imageUrl === ""` means no cover: an opaque placeholder that
+            // crossfades like the photos.
+            return event.imageUrl === "" ? (
+              <span
+                key={event.id}
+                aria-hidden="true"
+                className={cn(
+                  "absolute inset-0 flex items-center justify-center bg-indigo-900 text-indigo-300",
+                  fadeClass,
+                )}
+              >
+                <ImageIcon className="size-12" aria-hidden="true" />
+              </span>
+            ) : (
+              <Image
+                key={event.id}
+                src={event.imageUrl}
+                alt={event.imageAlt}
+                aria-hidden={i !== index}
+                fill
+                sizes="(min-width: 1024px) 760px, 100vw"
+                loading={i === 0 ? "eager" : undefined}
+                fetchPriority={i === 0 ? "high" : undefined}
+                // Covers may come from any https host, not just those in `next.config.ts`.
+                unoptimized
+                className={cn("object-cover", fadeClass)}
+              />
+            );
+          })}
 
           <EventStatusBadge
             status={current.status}
@@ -179,16 +199,23 @@ export function FeaturedEventsCarousel({ events }: FeaturedEventsCarouselProps) 
               </span>
             </p>
             <div className="mt-3.5 flex gap-2.5">
+              {/* Sold out: no purchase CTA; the "Agotado" badge is already on the photo. */}
+              {!isSoldOut && (
+                <Link
+                  href={`/events/${current.slug}/tickets`}
+                  className={cn(buttonVariants({ variant: "cta" }), "h-[52px] flex-1 cursor-pointer gap-2 rounded-2xl text-base font-semibold")}
+                >
+                  Comprar entradas
+                  <ArrowRight className="size-[18px]" aria-hidden="true" />
+                </Link>
+              )}
               <Link
-                href={`/events/${current.id}/tickets`}
-                className={cn(buttonVariants({ variant: "cta" }), "h-[52px] flex-1 cursor-pointer gap-2 rounded-2xl text-base font-semibold")}
-              >
-                Comprar entradas
-                <ArrowRight className="size-[18px]" aria-hidden="true" />
-              </Link>
-              <Link
-                href={`/events/${current.id}`}
-                className={cn(buttonVariants({ variant: "outline" }), "hidden h-[52px] cursor-pointer rounded-2xl border-white/40 bg-transparent px-5 text-base text-white hover:bg-white/10 hover:text-white sm:inline-flex")}
+                href={`/events/${current.slug}`}
+                className={cn(
+                  buttonVariants({ variant: "outline" }),
+                  "h-[52px] cursor-pointer rounded-2xl border-white/40 bg-transparent px-5 text-base text-white hover:bg-white/10 hover:text-white",
+                  isSoldOut ? "flex-1" : "hidden sm:inline-flex",
+                )}
               >
                 Ver detalles
               </Link>
@@ -220,16 +247,29 @@ export function FeaturedEventsCarousel({ events }: FeaturedEventsCarouselProps) 
                 )}
               </span>
               <span className="flex items-center gap-3">
-                <Image
-                  src={event.imageUrl}
-                  alt=""
-                  width={56}
-                  height={56}
-                  className={cn(
-                    "size-12 shrink-0 rounded-xl object-cover lg:size-14 lg:rounded-[14px]",
-                    !isActive && "opacity-70",
-                  )}
-                />
+                {event.imageUrl === "" ? (
+                  <span
+                    aria-hidden="true"
+                    className={cn(
+                      "flex size-12 shrink-0 items-center justify-center rounded-xl bg-muted text-zinc-400 lg:size-14 lg:rounded-[14px]",
+                      !isActive && "opacity-70",
+                    )}
+                  >
+                    <ImageIcon className="size-5" aria-hidden="true" />
+                  </span>
+                ) : (
+                  <Image
+                    src={event.imageUrl}
+                    alt=""
+                    width={56}
+                    height={56}
+                    unoptimized
+                    className={cn(
+                      "size-12 shrink-0 rounded-xl object-cover lg:size-14 lg:rounded-[14px]",
+                      !isActive && "opacity-70",
+                    )}
+                  />
+                )}
                 <span className="flex min-w-0 flex-col gap-0.5">
                   <span
                     className={cn(

@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { Menu, Ticket } from "lucide-react";
+import { Show, SignInButton, SignUpButton, UserButton, useUser } from "@clerk/nextjs";
 
 import { Logo } from "@/components/Logo";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -15,9 +16,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
-import { usePersistHydration } from "@/lib/use-persist-hydration";
-import { useAuthStore } from "@/modules/auth/auth.store";
-import { AccountMenu } from "@/modules/auth/components/AccountMenu";
+import { hasRole, isRole } from "@/modules/user/user.permissions";
 
 const NAV_LINKS = [
   { href: "/events", label: "Eventos" },
@@ -30,13 +29,12 @@ const SHEET_LINK_CLASS =
 
 export function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const router = useRouter();
   const pathname = usePathname();
-  const hydrated = usePersistHydration(useAuthStore);
-  const user = useAuthStore((state) => state.user);
-  const logout = useAuthStore((state) => state.logout);
-  // Before the saved session loads, render neither state to avoid a flash.
-  const session = hydrated ? user : undefined;
+  const { user } = useUser();
+  // Role mirrored from the DB into Clerk's publicMetadata; the pages re-check it server-side.
+  const role = user?.publicMetadata?.role;
+  const isOrganizer = isRole(role) && hasRole(role, "organizer");
+  const isAdmin = isRole(role) && hasRole(role, "admin");
   const closeMenu = () => setIsMenuOpen(false);
 
   return (
@@ -56,38 +54,45 @@ export function Navbar() {
       </nav>
 
       <div className="hidden min-w-[260px] items-center justify-end gap-2 md:flex">
-        {session === null && (
-          <>
-            <Link
-              href="/login"
-              className={cn(buttonVariants({ variant: "ghost" }), "h-11 rounded-xl px-4 text-[15px]")}
-            >
+        <Show when="signed-out">
+          <SignInButton>
+            <Button variant="ghost" className="h-11 cursor-pointer rounded-xl px-4 text-[15px]">
               Iniciar sesión
+            </Button>
+          </SignInButton>
+          <SignUpButton>
+            <Button variant="outline" className="h-11 cursor-pointer rounded-xl border-zinc-300 px-4 text-[15px] font-semibold">
+              Registrarse
+            </Button>
+          </SignUpButton>
+        </Show>
+        <Show when="signed-in">
+          <Link
+            href="/my-tickets"
+            aria-current={pathname === "/my-tickets" ? "page" : undefined}
+            className="flex h-11 items-center gap-2 rounded-xl px-4 text-[15px] font-semibold hover:bg-muted focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 aria-[current=page]:bg-indigo-50 aria-[current=page]:text-indigo-800"
+          >
+            <Ticket className="size-[18px]" aria-hidden="true" />
+            Mis entradas
+          </Link>
+          {isAdmin && (
+            <Link
+              href="/admin/users"
+              className={cn(buttonVariants({ variant: "outline" }), "h-11 rounded-xl border-zinc-300 px-4 text-[15px] font-semibold")}
+            >
+              Administración
             </Link>
+          )}
+          {isOrganizer && (
             <Link
               href="/organizer"
-              className={cn(
-                buttonVariants({ variant: "outline" }),
-                "h-11 rounded-xl border-zinc-300 px-4 text-[15px] font-semibold",
-              )}
+              className={cn(buttonVariants({ variant: "outline" }), "h-11 rounded-xl border-zinc-300 px-4 text-[15px] font-semibold")}
             >
-              Vender entradas
+              Panel de organizador
             </Link>
-          </>
-        )}
-        {session && (
-          <>
-            <Link
-              href="/my-tickets"
-              aria-current={pathname === "/my-tickets" ? "page" : undefined}
-              className="flex h-11 items-center gap-2 rounded-xl px-4 text-[15px] font-semibold hover:bg-muted focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 aria-[current=page]:bg-indigo-50 aria-[current=page]:text-indigo-800"
-            >
-              <Ticket className="size-[18px]" aria-hidden="true" />
-              Mis entradas
-            </Link>
-            <AccountMenu user={session} />
-          </>
-        )}
+          )}
+          <UserButton />
+        </Show>
       </div>
 
       <Sheet open={isMenuOpen} onOpenChange={setIsMenuOpen}>
@@ -115,40 +120,36 @@ export function Navbar() {
               </a>
             ))}
             <div className="mt-2 flex flex-col gap-1 border-t border-border pt-4">
-              {session ? (
-                <>
-                  <p className="px-2.5 pb-2 text-sm text-muted-foreground">
-                    <span className="block font-semibold text-foreground">{session.name}</span>
-                    {session.email}
-                  </p>
-                  <Link href="/my-tickets" onClick={closeMenu} className={SHEET_LINK_CLASS}>
-                    Mis entradas
+              <Show when="signed-out">
+                <SignInButton>
+                  <button type="button" onClick={closeMenu} className={cn(SHEET_LINK_CLASS, "cursor-pointer text-left")}>
+                    Iniciar sesión
+                  </button>
+                </SignInButton>
+                <SignUpButton>
+                  <button type="button" onClick={closeMenu} className={cn(SHEET_LINK_CLASS, "cursor-pointer text-left")}>
+                    Registrarse
+                  </button>
+                </SignUpButton>
+              </Show>
+              <Show when="signed-in">
+                <Link href="/my-tickets" onClick={closeMenu} className={SHEET_LINK_CLASS}>
+                  Mis entradas
+                </Link>
+                {isAdmin && (
+                  <Link href="/admin/users" onClick={closeMenu} className={SHEET_LINK_CLASS}>
+                    Administración
                   </Link>
+                )}
+                {isOrganizer && (
                   <Link href="/organizer" onClick={closeMenu} className={SHEET_LINK_CLASS}>
                     Panel de organizador
                   </Link>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      closeMenu();
-                      logout();
-                      router.push("/");
-                    }}
-                    className={cn(SHEET_LINK_CLASS, "cursor-pointer text-left")}
-                  >
-                    Cerrar sesión
-                  </button>
-                </>
-              ) : (
-                <>
-                  <Link href="/login" onClick={closeMenu} className={SHEET_LINK_CLASS}>
-                    Iniciar sesión
-                  </Link>
-                  <Link href="/organizer" onClick={closeMenu} className={SHEET_LINK_CLASS}>
-                    Vender entradas
-                  </Link>
-                </>
-              )}
+                )}
+                <div className="px-2.5 pt-2">
+                  <UserButton />
+                </div>
+              </Show>
             </div>
           </nav>
         </SheetContent>

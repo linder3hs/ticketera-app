@@ -4,9 +4,11 @@ import {
   EMPTY_FILTERS,
   filterEvents,
   getActiveFilterChips,
+  getCityOptions,
   getFacetCounts,
   getMonthOptions,
   parseSearchParams,
+  searchCatalog,
   sortEvents,
   toSearchHref,
   toSearchParams,
@@ -16,6 +18,7 @@ import type { Event, EventCategory } from "@/modules/event/event.types";
 function event(overrides: Partial<Event>): Event {
   return {
     id: "evt",
+    slug: "evento",
     title: "Evento",
     category: "Conciertos",
     imageUrl: "",
@@ -133,6 +136,48 @@ describe("event-search", () => {
       expect(chips.map((chip) => chip.label)).toEqual(["“rock”", "Teatro", "Octubre", "S/ 50 – 150"]);
       expect(chips[1].filters.categories).toEqual([]);
       expect(chips[1].filters.q).toBe("rock");
+    });
+  });
+
+  describe("getCityOptions", () => {
+    const withCities = (cities: string[]) => cities.map((city, index) => event({ id: `e${index}`, city }));
+
+    it("lists each city once", () => {
+      expect(getCityOptions(EVENTS)).toEqual(["Arequipa", "Lima"]);
+    });
+
+    it("sorts alphabetically in Spanish, not by code unit", () => {
+      expect(getCityOptions(withCities(["Lima", "Ática", "Arequipa", "Lima"]))).toEqual(["Arequipa", "Ática", "Lima"]);
+    });
+
+    it("returns no cities for an empty catalog", () => {
+      expect(getCityOptions([])).toEqual([]);
+    });
+  });
+
+  describe("searchCatalog", () => {
+    it("returns the whole catalog by date without filters", () => {
+      expect(ids(searchCatalog(EVENTS, EMPTY_FILTERS, CATEGORIES))).toEqual(["b", "a", "c"]);
+    });
+
+    it("applies filters and the price sort", () => {
+      const filters = { ...EMPTY_FILTERS, cities: ["Lima"], sort: "price" as const };
+      expect(ids(searchCatalog(EVENTS, filters, CATEGORIES))).toEqual(["c", "a"]);
+    });
+
+    it("keeps the catalog order for events on the same day", () => {
+      const catalog = [
+        event({ id: "same-day-1", date: "2026-10-05" }),
+        event({ id: "same-day-2", date: "2026-10-05" }),
+        event({ id: "earlier", date: "2026-10-01" }),
+      ];
+      expect(ids(searchCatalog(catalog, EMPTY_FILTERS, CATEGORIES))).toEqual(["earlier", "same-day-1", "same-day-2"]);
+    });
+
+    it("does not mutate the catalog", () => {
+      const catalog = [...EVENTS];
+      searchCatalog(catalog, { ...EMPTY_FILTERS, sort: "price" }, CATEGORIES);
+      expect(ids(catalog)).toEqual(["a", "b", "c"]);
     });
   });
 });

@@ -1,37 +1,61 @@
-import Link from "next/link";
 import { ArrowRight, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { formatEventPrice } from "@/modules/event/event.utils";
 import type { OrderLine } from "@/modules/booking/booking.store";
 
 interface OrderSummaryProps {
-  /** Where "Continuar" goes. */
-  checkoutHref: string;
   lines: OrderLine[];
   count: number;
   total: number;
   currency: string;
   onRemoveSeat: (zoneId: string, seatId: string) => void;
+  /** "Continuar": holds the selection and moves on. */
+  onContinue: () => void;
+  /** The hold is running: "Continuar" is disabled and says so. */
+  isPending: boolean;
+  /** Why the last attempt failed; `null` when there's nothing to show. */
+  error: string | null;
 }
 
-function ContinueButton({ href, isEmpty, className }: { href: string; isEmpty: boolean; className: string }) {
-  const classes = cn("cursor-pointer gap-2 font-semibold", className);
+interface ContinueButtonProps {
+  onClick: () => void;
+  disabled: boolean;
+  isPending: boolean;
+  className: string;
+}
 
-  if (isEmpty) {
-    return (
-      <Button type="button" disabled className={cn(classes, "bg-zinc-200 text-muted-foreground disabled:opacity-100")}>
-        Continuar
-      </Button>
-    );
-  }
-
+function ContinueButton({ onClick, disabled, isPending, className }: ContinueButtonProps) {
   return (
-    <Link href={href} className={cn(buttonVariants({ variant: "cta" }), classes)}>
-      Continuar
-      <ArrowRight className="size-[18px]" aria-hidden="true" />
-    </Link>
+    <Button
+      type="button"
+      variant="cta"
+      disabled={disabled}
+      onClick={onClick}
+      className={cn(
+        "cursor-pointer gap-2 font-semibold disabled:bg-zinc-200 disabled:text-muted-foreground disabled:opacity-100",
+        className,
+      )}
+    >
+      {isPending ? (
+        "Reservando…"
+      ) : (
+        <>
+          Continuar
+          <ArrowRight className="size-[18px]" aria-hidden="true" />
+        </>
+      )}
+    </Button>
+  );
+}
+
+function ErrorMessage({ message, className }: { message: string | null; className?: string }) {
+  if (!message) return null;
+  return (
+    <p role="alert" className={cn("text-[13px] font-medium text-destructive", className)}>
+      {message}
+    </p>
   );
 }
 
@@ -41,8 +65,18 @@ function ContinueButton({ href, isEmpty, className }: { href: string; isEmpty: b
  * bottom of the screen keeps total and button in reach (the page leaves room
  * for it).
  */
-export function OrderSummary({ checkoutHref, lines, count, total, currency, onRemoveSeat }: OrderSummaryProps) {
+export function OrderSummary({
+  lines,
+  count,
+  total,
+  currency,
+  onRemoveSeat,
+  onContinue,
+  isPending,
+  error,
+}: OrderSummaryProps) {
   const isEmpty = count === 0;
+  const continueProps = { onClick: onContinue, disabled: isEmpty || isPending, isPending };
   const countLabel = count === 1 ? "1 entrada" : `${count} entradas`;
   const totalLabel = formatEventPrice(total, currency);
 
@@ -100,15 +134,19 @@ export function OrderSummary({ checkoutHref, lines, count, total, currency, onRe
           </span>
         </div>
 
-        <ContinueButton href={checkoutHref} isEmpty={isEmpty} className="hidden h-14 rounded-2xl text-base lg:inline-flex" />
+        <ErrorMessage message={error} className="hidden lg:block" />
+        <ContinueButton {...continueProps} className="hidden h-14 rounded-2xl text-base lg:inline-flex" />
       </aside>
 
-      <div className="fixed inset-x-0 bottom-0 z-30 flex items-center justify-between gap-3 border-t border-border bg-background px-4 pt-3 pb-5 shadow-[0_-12px_24px_-18px_rgba(24,24,27,0.35)] lg:hidden">
-        <span className="flex flex-col">
-          <span className="text-xs text-muted-foreground">Total · {countLabel}</span>
-          <span className="text-[22px] font-bold tracking-tight tabular-nums">{totalLabel}</span>
-        </span>
-        <ContinueButton href={checkoutHref} isEmpty={isEmpty} className="h-[52px] rounded-[15px] px-6 text-[15px]" />
+      <div className="fixed inset-x-0 bottom-0 z-30 flex flex-col gap-2 border-t border-border bg-background px-4 pt-3 pb-5 shadow-[0_-12px_24px_-18px_rgba(24,24,27,0.35)] lg:hidden">
+        <ErrorMessage message={error} />
+        <div className="flex items-center justify-between gap-3">
+          <span className="flex flex-col">
+            <span className="text-xs text-muted-foreground">Total · {countLabel}</span>
+            <span className="text-[22px] font-bold tracking-tight tabular-nums">{totalLabel}</span>
+          </span>
+          <ContinueButton {...continueProps} className="h-[52px] rounded-[15px] px-6 text-[15px]" />
+        </div>
       </div>
     </>
   );

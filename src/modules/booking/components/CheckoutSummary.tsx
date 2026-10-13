@@ -1,11 +1,11 @@
-import Image from "next/image";
 import Link from "next/link";
 
+import { EventCover } from "@/modules/event/components/EventCover";
 import { formatEventDateParts, formatEventPrice } from "@/modules/event/event.utils";
 import type { Event } from "@/modules/event/event.types";
 import type { OrderLine } from "@/modules/booking/booking.types";
 
-export type CheckoutEvent = Pick<Event, "id" | "title" | "date" | "venue" | "city" | "imageUrl" | "currency">;
+export type CheckoutEvent = Pick<Event, "id" | "slug" | "title" | "date" | "venue" | "city" | "imageUrl" | "currency">;
 
 interface CheckoutSummaryProps {
   event: CheckoutEvent;
@@ -23,7 +23,7 @@ export function CheckoutEventHeader({ event, size }: { event: CheckoutEvent; siz
             : "relative size-12 shrink-0 overflow-hidden rounded-xl"
         }
       >
-        <Image src={event.imageUrl} alt="" fill sizes="64px" className="object-cover" />
+        <EventCover src={event.imageUrl} alt="" sizes="64px" />
       </span>
       <span className="flex min-w-0 flex-col gap-0.5">
         <span className="truncate text-[15px] font-semibold lg:text-base">{event.title}</span>
@@ -57,7 +57,7 @@ export function CheckoutSummary({ event, lines }: CheckoutSummaryProps) {
         ))}
       </ul>
       <Link
-        href={`/events/${event.id}/tickets`}
+        href={`/events/${event.slug}/tickets`}
         className="w-fit rounded-md text-sm font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
       >
         Cambiar entradas

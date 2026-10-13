@@ -2,13 +2,13 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import {
   MAX_TICKETS_PER_ZONE,
-  RESERVATION_MS,
   createOrderId,
   getOrderLines,
   getOrderTotals,
   useBookingStore,
 } from "@/modules/booking/booking.store";
-import type { Seat, Zone } from "@/modules/booking/booking.types";
+import type { OrderLine, Seat, Zone } from "@/modules/booking/booking.types";
+import { MAX_TICKETS_PER_ZONE as SCHEMA_MAX_TICKETS_PER_ZONE } from "@/modules/booking/reservation.schema";
 
 function seat(row: string, number: number, status: Seat["status"] = "available"): Seat {
   return { id: `stand-${row}${number}`, row, number, x: 0, y: 0, status };
@@ -125,47 +125,85 @@ describe("booking.store", () => {
     });
   });
 
-  describe("startReservation", () => {
-    it("starts once and is cleared when the event changes", () => {
-      store().startReservation(1000);
-      store().startReservation(5000);
-      expect(store().reservationExpiresAt).toBe(1000 + RESERVATION_MS);
+  describe("pruneSelection", () => {
+    it("drops the given seats from any zone and keeps the rest", () => {
+      const BOX: Zone = { ...STAND, id: "box", name: "Palco" };
+      store().toggleSeat(STAND, seat("A", 1));
+      store().toggleSeat(STAND, seat("A", 2));
+      store().toggleSeat(BOX, { ...seat("C", 3), id: "box-C3" });
+      store().setQuantity(FIELD, 2);
 
-      store().init("evt-002", null);
-      expect(store().reservationExpiresAt).toBeNull();
+      store().pruneSelection({ seatIds: ["stand-A1", "box-C3"], zoneIds: [] });
+
+      expect(store().seats.stand.map((item) => item.id)).toEqual(["stand-A2"]);
+      expect(store().seats.box).toEqual([]);
+      expect(store().quantities).toEqual({ field: 2 });
+    });
+
+    it("clears the quantity of the given zones, also one that is now sold out", () => {
+      const PIT: Zone = { ...FIELD, id: "pit", name: "Pit" };
+      store().setQuantity(FIELD, 2);
+      store().setQuantity(PIT, 3);
+      store().toggleSeat(STAND, seat("A", 1));
+
+      // Refreshed as sold out: setQuantity can no longer change it, pruneSelection can.
+      store().setQuantity({ ...FIELD, status: "sold-out" }, 0);
+      expect(store().quantities.field).toBe(2);
+
+      store().pruneSelection({ seatIds: [], zoneIds: ["field"] });
+
+      expect(store().quantities).toEqual({ pit: 3 });
+      expect(store().seats.stand.map((item) => item.id)).toEqual(["stand-A1"]);
     });
   });
 
   describe("confirmOrder", () => {
-    it("saves the order and clears the selection", () => {
+    it("saves an order with the given event and lines, and clears the selection", () => {
       store().setQuantity(FIELD, 2);
       store().toggleSeat(STAND, seat("A", 1));
-      store().startReservation(0);
+      const lines: OrderLine[] = [
+        { zoneId: "pit", zoneName: "Pit", quantity: 3, amount: 150, seats: [] },
+        { zoneId: "stand", zoneName: "Tribuna", quantity: 1, amount: 100, seats: [seat("B", 2)] },
+      ];
 
       const order = store().confirmOrder(
-        { zones: [FIELD, STAND], currency: "PEN", method: "yape", buyerName: "Ana Pérez", email: "ana@mail.com" },
+        {
+          eventId: "evt-reserved",
+          lines,
+          currency: "PEN",
+          method: "card",
+          buyerName: "Ana Pérez",
+          email: "ana@mail.com",
+        },
         "TK-12345",
       );
 
-      expect(order).toMatchObject({
+      expect(order).toEqual({
         id: "TK-12345",
-        eventId: "evt-001",
-        count: 3,
-        total: 300,
+        eventId: "evt-reserved",
+        lines,
+        ...getOrderTotals(lines),
         currency: "PEN",
-        method: "yape",
+        method: "card",
+        buyerName: "Ana Pérez",
         email: "ana@mail.com",
       });
-      expect(order.lines.map((line) => line.zoneId)).toEqual(["field", "stand"]);
+      expect(order).toMatchObject({ count: 4, total: 250 });
       expect(store().lastOrder).toEqual(order);
       expect(store().orders).toEqual([order]);
-      expect(store()).toMatchObject({ seats: {}, quantities: {}, reservationExpiresAt: null, eventId: "evt-001" });
+      expect(store()).toMatchObject({ eventId: "evt-001", activeZoneId: "field", seats: {}, quantities: {} });
     });
 
     it("creates order ids with the TK-00000 format", () => {
       expect(createOrderId()).toMatch(/^TK-\d{5}$/);
       expect(createOrderId(() => 0)).toBe("TK-10000");
       expect(createOrderId(() => 0.99999)).toBe("TK-99999");
+    });
+  });
+
+  describe("MAX_TICKETS_PER_ZONE", () => {
+    it("is the reservation schema's per-zone limit", () => {
+      expect(MAX_TICKETS_PER_ZONE).toBe(SCHEMA_MAX_TICKETS_PER_ZONE);
     });
   });
 });

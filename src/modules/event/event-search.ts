@@ -8,8 +8,9 @@ import type {
 
 /**
  * Price ranges shared by the hero search form and the search filters.
- * `min` is exclusive and `max` inclusive. Mock: `priceFrom` is compared as a
- * plain number, whatever the event's currency.
+ * `min` is exclusive and `max` inclusive. `priceFrom` (the cheapest zone) is
+ * compared as a plain number, whatever the event's currency; an event without
+ * zones has `priceFrom: 0` and falls in "Hasta S/ 50".
  */
 export const PRICE_RANGES: { key: PriceRangeKey; label: string; min: number; max: number }[] = [
   { key: "under-50", label: "Hasta S/ 50", min: -Infinity, max: 50 },
@@ -130,10 +131,27 @@ export function sortEvents(events: Event[], sort: EventSort): Event[] {
   );
 }
 
+/**
+ * Events of the catalog matching the search filters, in the requested order.
+ * The sort is stable, so ties keep the catalog order (`starts_at`, then `id`).
+ */
+export function searchCatalog(
+  events: Event[],
+  filters: EventSearchFilters,
+  categories: EventCategory[],
+): Event[] {
+  return sortEvents(filterEvents(events, filters, categories), filters.sort);
+}
+
+/** Cities with events, each once, alphabetically in Spanish. */
+export function getCityOptions(events: Event[]): string[] {
+  return [...new Set(events.map((event) => event.city))].sort((a, b) => a.localeCompare(b, "es"));
+}
+
 /** How many events of the whole catalog fall in each category and city. */
 export function getFacetCounts(events: Event[], categories: EventCategory[]) {
   const count = (predicate: (event: Event) => boolean) => events.filter(predicate).length;
-  const cities = [...new Set(events.map((event) => event.city))];
+  const cities = getCityOptions(events);
 
   return {
     categories: Object.fromEntries(

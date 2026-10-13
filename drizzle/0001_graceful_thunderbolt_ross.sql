@@ -1,0 +1,1 @@
+ALTER TABLE "organizer" ALTER COLUMN "tax_id" DROP NOT NULL;
