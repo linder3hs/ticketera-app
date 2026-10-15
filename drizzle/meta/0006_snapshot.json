@@ -1,5 +1,5 @@
 {
-  "id": "54e97452-5bd8-4859-a833-b80ebc0091a7",
+  "id": "543b1b03-4ead-4c3f-a591-f595c6fd66f6",
   "prevId": "03255da1-fa12-45d5-a719-b3ec9d68502b",
   "version": "7",
   "dialect": "postgresql",
@@ -2019,7 +2019,19 @@
           "name": "ticket_id",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
+        },
+        "event_id": {
+          "name": "event_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "scanned_code": {
+          "name": "scanned_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "scanned_by": {
           "name": "scanned_by",
@@ -2102,6 +2114,19 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
+        "check_in_event_id_event_id_fk": {
+          "name": "check_in_event_id_event_id_fk",
+          "tableFrom": "check_in",
+          "tableTo": "event",
+          "columnsFrom": [
+            "event_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
         "check_in_scanned_by_user_id_fk": {
           "name": "check_in_scanned_by_user_id_fk",
           "tableFrom": "check_in",
@@ -2119,7 +2144,12 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "check_in_ticket_or_scanned_code_check": {
+          "name": "check_in_ticket_or_scanned_code_check",
+          "value": "\"check_in\".\"ticket_id\" IS NOT NULL OR (\"check_in\".\"event_id\" IS NOT NULL AND \"check_in\".\"scanned_code\" IS NOT NULL)"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.ticket": {
@@ -2654,8 +2684,7 @@
       "values": [
         "pending",
         "succeeded",
-        "failed",
-        "canceled"
+        "failed"
       ]
     },
     "public.reservation_status": {

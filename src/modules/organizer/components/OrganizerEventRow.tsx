@@ -17,6 +17,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { CHECK_IN_EVENT_STATUSES } from "@/modules/check-in/check-in.policy";
 import { formatEventDateParts, formatEventPrice } from "@/modules/event/event.utils";
 import type { EventStatus, ManagedEventRow } from "@/modules/event/event-list.types";
 import { useDeleteEvent, useRetryEventRefunds, useSetEventStatus } from "@/modules/event/hooks/use-event-mutations";
@@ -25,7 +26,7 @@ import { useOrganizerStore } from "@/modules/organizer/organizer.store";
 import type { DispatchResult } from "@/modules/refund/refund.types";
 
 /** Column template shared by the table header and rows (from `xl`). */
-export const EVENT_TABLE_COLUMNS = "xl:grid-cols-[minmax(0,1fr)_100px_170px_100px_340px]";
+export const EVENT_TABLE_COLUMNS = "xl:grid-cols-[minmax(0,1fr)_100px_170px_100px_420px]";
 
 /** Actions that need a confirmation dialog. */
 type ConfirmKind = "unpublish" | "cancel" | "delete";
@@ -161,6 +162,8 @@ export function OrganizerEventRow({ event, publishDeniedReason = null }: Organiz
   const revenue = isDraft ? "—" : formatEventPrice(event.revenueCents / 100, event.currency);
 
   const { capabilities } = event;
+  // The UI only hides; the check-in policy on the server is the real gate.
+  const showCheckIn = CHECK_IN_EVENT_STATUSES.includes(event.status);
   const hintId = useId();
   const [confirming, setConfirming] = useState<ConfirmKind | null>(null);
   const setStatus = useSetEventStatus();
@@ -276,6 +279,15 @@ export function OrganizerEventRow({ event, publishDeniedReason = null }: Organiz
             className={cn(buttonVariants({ variant: "outline" }), ACTION_CLASS, "inline-flex")}
           >
             Editar
+          </Link>
+        )}
+        {showCheckIn && (
+          <Link
+            href={`/organizer/events/${event.id}/check-in`}
+            aria-label={`Check-in ${event.title}`}
+            className={cn(buttonVariants({ variant: "outline" }), ACTION_CLASS, "inline-flex")}
+          >
+            Check-in
           </Link>
         )}
         {capabilities.publish && (

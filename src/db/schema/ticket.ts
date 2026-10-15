@@ -1,4 +1,12 @@
-import { index, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import {
+  check,
+  index,
+  pgTable,
+  text,
+  timestamp,
+  uuid,
+} from "drizzle-orm/pg-core";
 import { id, timestamps } from "./columns";
 import { checkInResult, ticketStatus } from "./enums";
 import { event } from "./event";
@@ -29,9 +37,12 @@ export const checkIn = pgTable(
   "check_in",
   {
     id,
-    ticketId: uuid("ticket_id")
-      .notNull()
-      .references(() => ticket.id),
+    // NULL when the scanned code matches no ticket (see check constraint).
+    ticketId: uuid("ticket_id").references(() => ticket.id),
+    // Event of the gate where the scan happened.
+    eventId: uuid("event_id").references(() => event.id),
+    // Scanned text (max 64 chars); only written when ticketId is NULL.
+    scannedCode: text("scanned_code"),
     scannedBy: uuid("scanned_by")
       .notNull()
       .references(() => user.id),
@@ -44,5 +55,9 @@ export const checkIn = pgTable(
   (t) => [
     index("check_in_ticket_id_idx").on(t.ticketId),
     index("check_in_scanned_by_idx").on(t.scannedBy),
+    check(
+      "check_in_ticket_or_scanned_code_check",
+      sql`${t.ticketId} IS NOT NULL OR (${t.eventId} IS NOT NULL AND ${t.scannedCode} IS NOT NULL)`,
+    ),
   ],
 );
