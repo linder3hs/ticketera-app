@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, Ticket } from "lucide-react";
+import { Heart, Menu, Ticket } from "lucide-react";
 import { Show, SignInButton, SignUpButton, UserButton, useUser } from "@clerk/nextjs";
 
 import { Logo } from "@/components/Logo";
@@ -75,6 +75,14 @@ export function Navbar() {
             <Ticket className="size-[18px]" aria-hidden="true" />
             Mis entradas
           </Link>
+          <Link
+            href="/favorites"
+            aria-current={pathname === "/favorites" ? "page" : undefined}
+            className="flex h-11 items-center gap-2 rounded-xl px-4 text-[15px] font-semibold hover:bg-muted focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 aria-[current=page]:bg-indigo-50 aria-[current=page]:text-indigo-800"
+          >
+            <Heart className="size-[18px]" aria-hidden="true" />
+            Favoritos
+          </Link>
           {isAdmin && (
             <Link
               href="/admin/users"
@@ -135,6 +143,9 @@ export function Navbar() {
               <Show when="signed-in">
                 <Link href="/my-tickets" onClick={closeMenu} className={SHEET_LINK_CLASS}>
                   Mis entradas
+                </Link>
+                <Link href="/favorites" onClick={closeMenu} className={SHEET_LINK_CLASS}>
+                  Favoritos
                 </Link>
                 {isAdmin && (
                   <Link href="/admin/users" onClick={closeMenu} className={SHEET_LINK_CLASS}>

@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 import { hasRole, isRole } from "@/modules/user/user.permissions";
 import type { Role } from "@/modules/user/user.types";
 
-const isProtected = createRouteMatcher(["/admin(.*)", "/organizer(.*)", "/my-tickets(.*)"]);
+const isProtected = createRouteMatcher(["/admin(.*)", "/organizer(.*)", "/my-tickets(.*)", "/favorites(.*)"]);
 const MIN_ROLE_BY_AREA: [RegExp, Role][] = [
   [/^\/admin(\/|$)/, "admin"],
   [/^\/organizer(\/|$)/, "organizer"],

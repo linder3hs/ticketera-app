@@ -22,3 +22,9 @@ export async function isEventFavorite(userId: string, eventId: string): Promise<
 
   return row !== undefined;
 }
+
+export async function listFavoriteEventIds(userId: string): Promise<string[]> {
+  const rows = await db.select({ eventId: eventFavorite.eventId }).from(eventFavorite).where(eq(eventFavorite.userId, userId));
+
+  return rows.map((row) => row.eventId);
+}
