@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   createEventAction,
   deleteEventAction,
+  retryEventRefundsAction,
   setEventFeaturedAction,
   setEventStatusAction,
   updateEventAction,
@@ -31,7 +32,9 @@ export const updateEventMutation = async (variables: { id: string } & EventFormV
 export const deleteEventMutation = async (variables: { id: string }) => unwrap(await deleteEventAction(variables));
 export const setEventStatusMutation = async (variables: { id: string; status: EventStatusChange }) =>
   unwrap(await setEventStatusAction(variables));
-export const setEventFeaturedMutation = async (variables: { id: string; featured: boolean }) =>
+export const retryEventRefundsMutation = async (variables: { id: string }) =>
+  unwrap(await retryEventRefundsAction(variables));
+export const setEventFeaturedMutation =async (variables: { id: string; featured: boolean }) =>
   unwrap(await setEventFeaturedAction(variables));
 
 /** Runs `mutationFn`, then refreshes the cached lists and the server-rendered KPIs. */
@@ -52,4 +55,5 @@ export const useCreateEvent = () => useEventMutation(createEventMutation);
 export const useUpdateEvent = () => useEventMutation(updateEventMutation);
 export const useDeleteEvent = () => useEventMutation(deleteEventMutation);
 export const useSetEventStatus = () => useEventMutation(setEventStatusMutation);
-export const useSetEventFeatured = () => useEventMutation(setEventFeaturedMutation);
+export const useRetryEventRefunds = () => useEventMutation(retryEventRefundsMutation);
+export const useSetEventFeatured =() => useEventMutation(setEventFeaturedMutation);

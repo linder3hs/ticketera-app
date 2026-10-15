@@ -1,6 +1,7 @@
-import type { orderStatus, reservationStatus } from "@/db/schema/enums"; // types only: keeps drizzle out of the client bundle
+import type { orderStatus, refundStatus, reservationStatus } from "@/db/schema/enums"; // types only: keeps drizzle out of the client bundle
 
 export type OrderStatus = (typeof orderStatus.enumValues)[number];
+export type RefundStatus = (typeof refundStatus.enumValues)[number];
 export type ReservationStatus = (typeof reservationStatus.enumValues)[number];
 
 /** Status of the `stripe_transfers` capability of a connected account (Accounts v2). */
@@ -110,14 +111,23 @@ export interface PaymentWebhookEvent {
   paymentIntentId: string | null;
   /** Id of the PaymentIntent's `latest_charge`; null when it has none. */
   chargeId: string | null;
+  /** Present when the event's object is a refund; `status` is the provider's raw refund status. */
+  refund?: { id: string; status: string; metadataRefundId: string | null };
 }
 
 /** Narrow port for the payments webhook (ISP: the checkout keeps using `PaymentGateway`). */
 export interface PaymentWebhookGateway {
   /** Verifies with the payments webhook secret; throws `WebhookSignatureError` when invalid, `Error` when the secret is missing. */
   parseWebhook(payload: string, signature: string): PaymentWebhookEvent;
-  /** Full refund reversing the transfer and the platform fee; same key → same refund; `null` id when already refunded. */
-  refundPayment(paymentIntentId: string, idempotencyKey: string): Promise<{ refundId: string | null }>;
+  /**
+   * Full refund reversing the transfer and the platform fee; same key → same refund; `null` id when already refunded.
+   * `options.metadata` is attached to the provider's refund.
+   */
+  refundPayment(
+    paymentIntentId: string,
+    idempotencyKey: string,
+    options?: { metadata?: Record<string, string> },
+  ): Promise<{ refundId: string | null }>;
 }
 
 /** What a `payment_intent.succeeded` does to its order: convert it, just record the event, or refund the charge. */

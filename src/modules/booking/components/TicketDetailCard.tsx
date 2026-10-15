@@ -5,6 +5,7 @@ import { CalendarPlus, ChevronLeft, ChevronRight, Clock, Download, MapPin, Calen
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { RefundNotice } from "@/modules/booking/components/RefundNotice";
 import { TicketQr } from "@/modules/booking/components/TicketQr";
 import { TICKET_STATUS_LABELS } from "@/modules/booking/components/ticket-status-labels";
 import type { MyOrder, MyOrderEvent } from "@/modules/booking/order.types";
@@ -64,6 +65,7 @@ export function TicketDetailCard({ event, order }: TicketDetailCardProps) {
             {event.venue}, {event.city}
           </li>
         </ul>
+        {order.refund && <RefundNotice refund={order.refund} currency={event.currency} />}
       </div>
 
       <div className="relative border-t-[1.5px] border-dashed border-zinc-300" aria-hidden="true">

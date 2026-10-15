@@ -152,10 +152,13 @@ describe("resolveConfirmation", () => {
 });
 
 describe("PAYMENT_EVENT_TYPES", () => {
-  it("names the two PaymentIntent events", () => {
+  it("names the two PaymentIntent events and the three refund events", () => {
     expect(PAYMENT_EVENT_TYPES).toEqual({
       succeeded: "payment_intent.succeeded",
       failed: "payment_intent.payment_failed",
+      refundCreated: "refund.created",
+      refundUpdated: "refund.updated",
+      refundFailed: "refund.failed",
     });
   });
 });

@@ -1,7 +1,8 @@
-import type { ticketStatus } from "@/db/schema/enums"; // solo tipo, como payment.types.ts
-import type { OrderStatus } from "@/modules/payment/payment.types";
+import type { refundReason, ticketStatus } from "@/db/schema/enums"; // solo tipo, como payment.types.ts
+import type { OrderStatus, RefundStatus } from "@/modules/payment/payment.types";
 
 export type TicketStatus = (typeof ticketStatus.enumValues)[number];
+export type RefundReason = (typeof refundReason.enumValues)[number];
 
 export interface MyTicket {
   id: string;
@@ -32,6 +33,14 @@ export interface MyOrderEvent {
   currency: string;
 }
 
+/** Último reembolso de la orden: lo que el comprador ve en "Mis entradas". */
+export interface MyOrderRefund {
+  status: RefundStatus;
+  reason: RefundReason;
+  /** Unidades de moneda (`amount_cents / 100`). */
+  amount: number;
+}
+
 export interface MyOrder {
   id: string;
   /** "TK-" + 8; lo que ve el comprador como "Pedido N.º". */
@@ -43,6 +52,8 @@ export interface MyOrder {
   buyerName: string;
   buyerEmail: string;
   event: MyOrderEvent;
+  /** Su último reembolso; `null` si no tiene. */
+  refund: MyOrderRefund | null;
   /** Vacío mientras la orden está `pending`. */
   tickets: MyTicket[];
 }

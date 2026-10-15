@@ -1,6 +1,13 @@
 import { toLimaDate, toLimaTime } from "@/modules/event/event-list.utils";
-import type { ConfirmationView, MyOrder, MyTicket, TicketStatus } from "@/modules/booking/order.types";
-import type { OrderStatus } from "@/modules/payment/payment.types";
+import type {
+  ConfirmationView,
+  MyOrder,
+  MyOrderRefund,
+  MyTicket,
+  RefundReason,
+  TicketStatus,
+} from "@/modules/booking/order.types";
+import type { OrderStatus, RefundStatus } from "@/modules/payment/payment.types";
 
 export const ORDER_MESSAGES = {
   invalid: "Datos inválidos.",
@@ -43,6 +50,10 @@ export interface OrderTicketRow {
   /** `venue_seat.row_label`; `null` in general admission. */
   seatRow: string | null;
   seatNumber: number | null;
+  /** Last refund of the order (`refund.created_at` desc); all three `null` when it has none. */
+  refundStatus: RefundStatus | null;
+  refundReason: RefundReason | null;
+  refundAmountCents: number | null;
 }
 
 function toMyTicket(row: OrderTicketRow): MyTicket | null {
@@ -56,6 +67,11 @@ function toMyTicket(row: OrderTicketRow): MyTicket | null {
     holderName: row.holderName,
     status: row.ticketStatus,
   };
+}
+
+function toMyRefund(row: OrderTicketRow): MyOrderRefund | null {
+  if (row.refundStatus === null || row.refundReason === null || row.refundAmountCents === null) return null;
+  return { status: row.refundStatus, reason: row.refundReason, amount: row.refundAmountCents / 100 };
 }
 
 function toMyOrder(row: OrderTicketRow): MyOrder {
@@ -81,6 +97,7 @@ function toMyOrder(row: OrderTicketRow): MyOrder {
       city: row.venueCity,
       currency: row.currency,
     },
+    refund: toMyRefund(row),
     tickets: [],
   };
 }
@@ -95,6 +112,29 @@ export function toMyOrders(rows: OrderTicketRow[]): MyOrder[] {
     byOrder.set(row.orderId, order);
   }
   return [...byOrder.values()];
+}
+
+const REFUND_MONEY_FORMAT_LOCALE = "es-PE";
+
+/**
+ * Explains a refund to the buyer, by status and by reason. It gives no deadlines: those live in the
+ * refund policy page. The status headline is `REFUND_STATUS_LABELS`.
+ */
+export function describeRefundForOrder(refund: MyOrderRefund, currency: string): string {
+  const eventCancelled = refund.reason === "event_cancelled";
+  const intro = eventCancelled ? "El evento fue cancelado. " : "";
+
+  switch (refund.status) {
+    case "pending":
+      return `${intro}Estamos procesando el reembolso de tu compra.`;
+    case "succeeded": {
+      const amount = new Intl.NumberFormat(REFUND_MONEY_FORMAT_LOCALE, { style: "currency", currency }).format(refund.amount);
+      return `${intro}Te reembolsamos ${amount} a tu forma de pago original.`;
+    }
+    case "failed":
+    case "canceled":
+      return `${intro}Tu reembolso aún no se completó; lo estamos revisando y volveremos a intentarlo.`;
+  }
 }
 
 /**

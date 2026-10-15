@@ -20,9 +20,10 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { CHECK_IN_EVENT_STATUSES } from "@/modules/check-in/check-in.policy";
 import { formatEventDateParts, formatEventPrice } from "@/modules/event/event.utils";
 import type { EventStatus, ManagedEventRow } from "@/modules/event/event-list.types";
-import { useDeleteEvent, useSetEventStatus } from "@/modules/event/hooks/use-event-mutations";
+import { useDeleteEvent, useRetryEventRefunds, useSetEventStatus } from "@/modules/event/hooks/use-event-mutations";
 import { FeaturedToggle } from "@/modules/organizer/components/FeaturedToggle";
 import { useOrganizerStore } from "@/modules/organizer/organizer.store";
+import type { DispatchResult } from "@/modules/refund/refund.types";
 
 /** Column template shared by the table header and rows (from `xl`). */
 export const EVENT_TABLE_COLUMNS = "xl:grid-cols-[minmax(0,1fr)_100px_170px_100px_420px]";
@@ -40,6 +41,13 @@ const NOTICE: Record<RowAction, (title: string) => string> = {
   delete: (title) => `“${title}” se eliminó.`,
 };
 
+/** What the organizer reads after retrying the refunds: what is still pending, or that nothing was. */
+function describeRetry(title: string, { dispatched, pending }: DispatchResult): string {
+  if (pending > 0) return `Quedan ${pending} reembolsos de “${title}” por procesar. Puedes reintentar más tarde.`;
+  if (dispatched > 0) return `Se enviaron los reembolsos de “${title}”.`;
+  return `“${title}” no tiene reembolsos pendientes.`;
+}
+
 const CONFIRM_COPY: Record<
   ConfirmKind,
   { heading: (title: string) => string; description: string; confirm: string; destructive: boolean }
@@ -53,7 +61,7 @@ const CONFIRM_COPY: Record<
   cancel: {
     heading: (title) => `¿Cancelar “${title}”?`,
     description:
-      "El evento quedará cancelado y ya no se podrá editar. Los reembolsos no se procesan automáticamente todavía.",
+      "El evento quedará cancelado y ya no se podrá editar. Se reembolsará automáticamente a los compradores.",
     confirm: "Cancelar evento",
     destructive: true,
   },
@@ -160,16 +168,27 @@ export function OrganizerEventRow({ event, publishDeniedReason = null }: Organiz
   const [confirming, setConfirming] = useState<ConfirmKind | null>(null);
   const setStatus = useSetEventStatus();
   const remove = useDeleteEvent();
+  const retryRefunds = useRetryEventRefunds();
   const setNotice = useOrganizerStore((state) => state.setNotice);
-  const busy = setStatus.isPending || remove.isPending;
+  const busy = setStatus.isPending || remove.isPending || retryRefunds.isPending;
+  const canRetryRefunds = event.status === "cancelled" && event.sold > 0;
   const showPublishHint = isDraft && capabilities.edit && !capabilities.publish && publishDeniedReason !== null;
-  // Publishing has no dialog: its error shows in the row. The others show it inside their dialog.
-  const error = (confirming === "delete" ? remove : setStatus).error?.message;
+  // Publishing and retrying refunds have no dialog: their error shows in the row. The others show it inside their dialog.
+  const error = (confirming === "delete" ? remove : (retryRefunds.error ? retryRefunds : setStatus)).error?.message;
 
   function closeDialog() {
     setConfirming(null);
     setStatus.reset();
     remove.reset();
+    retryRefunds.reset();
+  }
+
+  async function retry() {
+    try {
+      setNotice(describeRetry(event.title, await retryRefunds.mutateAsync({ id: event.id })));
+    } catch {
+      // the mutation state carries the message
+    }
   }
 
   async function run(action: RowAction) {
@@ -186,6 +205,7 @@ export function OrganizerEventRow({ event, publishDeniedReason = null }: Organiz
   function ask(kind: ConfirmKind) {
     setStatus.reset();
     remove.reset();
+    retryRefunds.reset();
     setConfirming(kind);
   }
 
@@ -312,6 +332,17 @@ export function OrganizerEventRow({ event, publishDeniedReason = null }: Organiz
             onClick={() => ask("cancel")}
           >
             Cancelar
+          </Button>
+        )}
+        {canRetryRefunds && (
+          <Button
+            variant="outline"
+            aria-label={`Reintentar reembolsos de ${event.title}`}
+            disabled={busy}
+            className={ACTION_CLASS}
+            onClick={retry}
+          >
+            {retryRefunds.isPending ? "Reintentando…" : "Reintentar reembolsos"}
           </Button>
         )}
         {capabilities.delete && (

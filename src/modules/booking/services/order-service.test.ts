@@ -35,6 +35,9 @@ const row = (overrides: Partial<OrderTicketRow> = {}): OrderTicketRow => ({
   zoneName: "Campo General",
   seatRow: null,
   seatNumber: null,
+  refundStatus: null,
+  refundReason: null,
+  refundAmountCents: null,
   ...overrides,
 });
 

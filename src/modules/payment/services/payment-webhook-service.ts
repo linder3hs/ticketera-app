@@ -18,6 +18,7 @@ import {
 } from "@/modules/payment/services/stripe-event-service";
 import { stripePaymentGateway } from "@/modules/payment/services/stripe-payment-gateway";
 import { toNewTickets } from "@/modules/payment/ticket.utils";
+import { confirmRefund } from "@/modules/refund/services/refund-service";
 
 export interface PaymentWebhookResult {
   status: 200 | 400 | 500;
@@ -25,6 +26,13 @@ export interface PaymentWebhookResult {
 
 /** A `payment_intent.succeeded` about a PaymentIntent. */
 type SucceededPaymentEvent = PaymentWebhookEvent & { paymentIntentId: string };
+
+/** The Stripe events that carry a refund; the refund's own status, not the event type, decides what changes. */
+const REFUND_EVENT_TYPES: ReadonlySet<string> = new Set([
+  PAYMENT_EVENT_TYPES.refundCreated,
+  PAYMENT_EVENT_TYPES.refundUpdated,
+  PAYMENT_EVENT_TYPES.refundFailed,
+]);
 
 /** Unique violation: a twin delivery already recorded the event, or a `ticket.code` clash. */
 const UNIQUE_VIOLATION = "23505";
@@ -35,7 +43,7 @@ function errorMessage(error: unknown): string {
 
 /**
  * Verifies and handles a payments webhook: invalid signature -> 400, ignored or already handled
- * event -> 200, failure -> 500 (Stripe retries; nothing is recorded).
+ * event -> 200, failure -> 500 (Stripe retries; nothing is recorded). `refund.*` events go to `confirmRefund`.
  */
 export async function handlePaymentWebhook(
   payload: string,
@@ -49,6 +57,14 @@ export async function handlePaymentWebhook(
     if (event.type === PAYMENT_EVENT_TYPES.failed) {
       // Not terminal: the buyer retries on the same PaymentIntent, so the order stays `pending`.
       console.info("[stripe] payment failed", event.id, event.paymentIntentId);
+      return { status: 200 };
+    }
+    if (REFUND_EVENT_TYPES.has(event.type)) {
+      const { refund } = event;
+      if (!refund) return { status: 200 };
+      if (await hasProcessedStripeEvent(event.id)) return { status: 200 };
+
+      await confirmRefund({ id: event.id, type: event.type, refund });
       return { status: 200 };
     }
     if (event.type !== PAYMENT_EVENT_TYPES.succeeded || !event.paymentIntentId) return { status: 200 };

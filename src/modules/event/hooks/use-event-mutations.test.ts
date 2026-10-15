@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createEventAction,
   deleteEventAction,
+  retryEventRefundsAction,
   setEventFeaturedAction,
   setEventStatusAction,
   updateEventAction,
@@ -14,6 +15,7 @@ import {
   createEventMutation,
   deleteEventMutation,
   eventsInvalidationKey,
+  retryEventRefundsMutation,
   setEventFeaturedMutation,
   setEventStatusMutation,
   unwrap,
@@ -24,6 +26,7 @@ vi.mock("@/modules/event/actions", () => ({
   createEventAction: vi.fn(),
   updateEventAction: vi.fn(),
   deleteEventAction: vi.fn(),
+  retryEventRefundsAction: vi.fn(),
   setEventStatusAction: vi.fn(),
   setEventFeaturedAction: vi.fn(),
 }));
@@ -91,6 +94,23 @@ describe("mutation functions", () => {
     vi.mocked(setEventFeaturedAction).mockResolvedValue({ ok: true, data: undefined });
     await expect(setEventFeaturedMutation({ id, featured: true })).resolves.toBeUndefined();
     expect(setEventFeaturedAction).toHaveBeenCalledWith({ id, featured: true });
+  });
+
+  it("retry refunds sends the event id and returns the dispatch counts", async () => {
+    const data = { dispatched: 2, failed: 0, pending: 0 };
+    vi.mocked(retryEventRefundsAction).mockResolvedValue({ ok: true, data });
+    await expect(retryEventRefundsMutation({ id })).resolves.toEqual(data);
+    expect(retryEventRefundsAction).toHaveBeenCalledWith({ id });
+  });
+
+  it("retry refunds rejects with the action's error when it is not ok", async () => {
+    vi.mocked(retryEventRefundsAction).mockResolvedValue({
+      ok: false,
+      error: "Solo se pueden reintentar los reembolsos de un evento cancelado.",
+    });
+    await expect(retryEventRefundsMutation({ id })).rejects.toThrow(
+      "Solo se pueden reintentar los reembolsos de un evento cancelado.",
+    );
   });
 
   it("feature rejects with the action's error when it is not ok", async () => {

@@ -41,6 +41,9 @@ import {
   getZoneStates,
   seatedOccupancy,
 } from "@/modules/event/services/event-facts-service";
+import type { DispatchResult } from "@/modules/refund/refund.types";
+import { canRetryEventRefunds } from "@/modules/refund/refund.utils";
+import { cancelEventAndRefund, retryEventRefunds as retryRefunds } from "@/modules/refund/services/refund-service";
 import { can } from "@/modules/user/user.permissions";
 
 /**
@@ -76,6 +79,7 @@ const MESSAGES = {
   onlyPublishedUnpublishes: "Solo un evento publicado se puede despublicar.",
   hasSalesUnpublish: "Tiene ventas: solo un administrador puede despublicarlo.",
   notCancellable: "Solo se puede cancelar un evento publicado (o un borrador con órdenes).",
+  notCancelled: "Solo se pueden reintentar los reembolsos de un evento cancelado.",
 } as const;
 
 const fail = (error: string): { ok: false; error: string } => ({ ok: false, error });
@@ -493,11 +497,17 @@ function statusDenial(
   return cancellable ? MESSAGES.forbidden : MESSAGES.notCancellable;
 }
 
-/** Publish (`draft` → `published`), unpublish (→ `draft`) or cancel (→ `cancelled`), as a compare-and-set on the previous status. */
+/**
+ * Publish (`draft` → `published`), unpublish (→ `draft`) or cancel (→ `cancelled`), as a compare-and-set on the previous status.
+ * Cancelling also creates and sends the refunds (`cancelEventAndRefund`): the compare-and-set built here runs
+ * first in the refund batch, and a Stripe failure afterwards does not undo the cancellation. `userId` is the
+ * signed-in user (from the session), recorded as who requested the refunds.
+ */
 export async function setEventStatus(
   actor: PolicyActor,
   eventId: string,
   status: "published" | "draft" | "cancelled",
+  userId: string,
 ): Promise<EventActionResult> {
   try {
     const stored = await loadVisibleEvent(actor, eventId);
@@ -510,7 +520,7 @@ export async function setEventStatus(
 
     const previous: EventStatus = stored.status;
     const unpublishWithoutSales = status === "draft" && !isModerator(actor);
-    const updated = await db
+    const compareAndSet = db
       .update(event)
       .set({ status })
       .where(
@@ -527,9 +537,39 @@ export async function setEventStatus(
       )
       .returning({ id: event.id });
 
+    if (status === "cancelled") {
+      // The statement goes unexecuted: the refund batch runs it together with the refunds and the tickets.
+      const cancelled = await cancelEventAndRefund(compareAndSet, eventId, userId);
+      return cancelled.ok ? { ok: true, data: undefined } : fail(MESSAGES.salesChanged);
+    }
+
+    const updated = await compareAndSet;
     if (updated.length === 1) return { ok: true, data: undefined };
     return fail(MESSAGES.salesChanged);
   } catch (error) {
     return failed("setEventStatus", error);
+  }
+}
+
+/**
+ * Retries the refunds of a cancelled event: sends the pending ones to Stripe and creates new ones where the
+ * last attempt failed or was cancelled. The data says how many went out and how many are still pending
+ * (all zeros when there was nothing to do). `userId` comes from the session.
+ */
+export async function retryEventRefunds(
+  actor: PolicyActor,
+  userId: string,
+  eventId: string,
+): Promise<EventActionResult<DispatchResult>> {
+  try {
+    const stored = await loadVisibleEvent(actor, eventId);
+    if (!stored) return fail(MESSAGES.notFound);
+    if (!canRetryEventRefunds(actor, stored)) {
+      return fail(stored.status === "cancelled" ? MESSAGES.forbidden : MESSAGES.notCancelled);
+    }
+
+    return { ok: true, data: await retryRefunds(eventId, userId) };
+  } catch (error) {
+    return failed("retryEventRefunds", error);
   }
 }

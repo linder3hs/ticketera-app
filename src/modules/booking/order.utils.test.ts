@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import type { MyOrder, MyTicket } from "@/modules/booking/order.types";
+import { refundStatus } from "@/db/schema/enums";
+import { REFUND_STATUS_LABELS } from "@/modules/booking/components/refund-status-labels";
+import type { MyOrder, MyOrderRefund, MyTicket } from "@/modules/booking/order.types";
 import {
+  describeRefundForOrder,
   getConfirmationView,
   getOrderPollInterval,
   ORDER_POLL_INTERVAL_MS,
@@ -36,6 +39,9 @@ const row = (overrides: Partial<OrderTicketRow> = {}): OrderTicketRow => ({
   zoneName: "Campo General",
   seatRow: null,
   seatNumber: null,
+  refundStatus: null,
+  refundReason: null,
+  refundAmountCents: null,
   ...overrides,
 });
 
@@ -141,6 +147,93 @@ describe("toMyOrders", () => {
   it("returns nothing for no rows", () => {
     expect(toMyOrders([])).toEqual([]);
   });
+
+  describe("refund", () => {
+    const refunded = { refundStatus: "succeeded", refundReason: "event_cancelled", refundAmountCents: 12550 } as const;
+
+    it("is null when the order has no refund", () => {
+      expect(toMyOrders([row()])[0].refund).toBeNull();
+    });
+
+    it("maps the last refund converting cents to currency units", () => {
+      expect(toMyOrders([row(refunded)])[0].refund).toEqual({ status: "succeeded", reason: "event_cancelled", amount: 125.5 });
+    });
+
+    it("shows one refund per order, not one per ticket row", () => {
+      const [order] = toMyOrders([
+        row({ ticketId: "t1", ...refunded }),
+        row({ ticketId: "t2", ...refunded }),
+        row({ ticketId: "t3", ...refunded }),
+      ]);
+      expect(order.tickets).toHaveLength(3);
+      expect(order.refund).toEqual({ status: "succeeded", reason: "event_cancelled", amount: 125.5 });
+    });
+
+    it("keeps the refund of each order apart", () => {
+      const orders = toMyOrders([
+        row({ orderId: "a", ...refunded }),
+        row({ orderId: "b", refundStatus: "pending", refundReason: "customer_request", refundAmountCents: 3000 }),
+        row({ orderId: "c" }),
+      ]);
+      expect(orders.map((order) => order.refund?.status ?? null)).toEqual(["succeeded", "pending", null]);
+    });
+  });
+});
+
+describe("describeRefundForOrder", () => {
+  const refund = (overrides: Partial<MyOrderRefund> = {}): MyOrderRefund => ({
+    status: "pending",
+    reason: "event_cancelled",
+    amount: 90,
+    ...overrides,
+  });
+
+  it("says the refund is in process while pending", () => {
+    expect(describeRefundForOrder(refund(), "PEN")).toBe("El evento fue cancelado. Estamos procesando el reembolso de tu compra.");
+  });
+
+  it("gives the amount in the event currency once succeeded", () => {
+    const text = describeRefundForOrder(refund({ status: "succeeded", amount: 125.5 }), "PEN");
+    expect(text).toContain("El evento fue cancelado.");
+    expect(text).toContain("125.50");
+    expect(text).toContain("S/");
+    expect(describeRefundForOrder(refund({ status: "succeeded", amount: 50 }), "USD")).not.toContain("S/");
+  });
+
+  it("says the refund is under review for failed and canceled, with the same text", () => {
+    const failed = describeRefundForOrder(refund({ status: "failed" }), "PEN");
+    expect(failed).toContain("lo estamos revisando");
+    expect(describeRefundForOrder(refund({ status: "canceled" }), "PEN")).toBe(failed);
+  });
+
+  it("mentions the cancelled event only for event_cancelled", () => {
+    for (const status of refundStatus.enumValues) {
+      expect(describeRefundForOrder(refund({ status, reason: "event_cancelled" }), "PEN")).toContain("El evento fue cancelado.");
+      expect(describeRefundForOrder(refund({ status, reason: "customer_request" }), "PEN")).not.toContain("cancelado");
+      expect(describeRefundForOrder(refund({ status, reason: "admin" }), "PEN")).not.toContain("cancelado");
+    }
+  });
+
+  it("gives no deadlines: those live in the refund policy", () => {
+    for (const status of refundStatus.enumValues) {
+      expect(describeRefundForOrder(refund({ status }), "PEN")).not.toMatch(/d[ií]as|horas/i);
+    }
+  });
+});
+
+describe("REFUND_STATUS_LABELS", () => {
+  it("covers every value of the refund_status enum", () => {
+    expect(Object.keys(REFUND_STATUS_LABELS).sort()).toEqual([...refundStatus.enumValues].sort());
+  });
+
+  it("labels each status as the buyer should read it", () => {
+    expect(REFUND_STATUS_LABELS).toEqual({
+      pending: "Reembolso en proceso",
+      succeeded: "Reembolsado",
+      failed: "Estamos revisando tu reembolso",
+      canceled: "Estamos revisando tu reembolso",
+    });
+  });
 });
 
 const ticket = (id = "t1"): MyTicket => ({
@@ -175,6 +268,7 @@ const order = (overrides: Partial<MyOrder> = {}, event: Partial<MyOrder["event"]
     currency: "PEN",
     ...event,
   },
+  refund: null,
   tickets: [ticket()],
   ...overrides,
 });
