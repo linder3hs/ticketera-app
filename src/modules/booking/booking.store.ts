@@ -1,27 +1,12 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
-import type { Order, OrderLine, PaymentMethod, Seat, Zone } from "@/modules/booking/booking.types";
+import type { OrderLine, Seat, Zone } from "@/modules/booking/booking.types";
 import { MAX_TICKETS_PER_ZONE } from "@/modules/booking/reservation.schema";
 import type { UnavailableTickets } from "@/modules/booking/reservation.types";
 
 export type { OrderLine };
 export { MAX_TICKETS_PER_ZONE };
-
-export interface ConfirmOrderInput {
-  eventId: string;
-  /** The reservation's lines: what the order pays for. */
-  lines: OrderLine[];
-  currency: string;
-  method: PaymentMethod;
-  buyerName: string;
-  email: string;
-}
-
-/** Mock order number: "TK-" + 5 digits. */
-export function createOrderId(random = Math.random): string {
-  return `TK-${Math.floor(10000 + random() * 90000)}`;
-}
 
 interface BookingState {
   eventId: string | null;
@@ -30,10 +15,6 @@ interface BookingState {
   seats: Record<string, Seat[]>;
   /** Ticket count of each standing zone. */
   quantities: Record<string, number>;
-  /** Last paid order, shown by the confirmation page. */
-  lastOrder: Order | null;
-  /** Every order paid in this browser, newest first ("Mis entradas"). */
-  orders: Order[];
   /** Starts a selection for `eventId`; keeps it if it's the same event. */
   init: (eventId: string, activeZoneId: string | null) => void;
   /** `null` goes back to the venue overview. */
@@ -43,19 +24,33 @@ interface BookingState {
   setQuantity: (zone: Zone, quantity: number) => void;
   /** Drops what a failed hold found unavailable: those seats, and the quantity of those standing zones. */
   pruneSelection: (unavailable: UnavailableTickets) => void;
-  /** Turns the reservation's lines into `lastOrder` and clears the selection. */
-  confirmOrder: (input: ConfirmOrderInput, orderId?: string) => Order;
+  /** Forgets the event and the whole selection (e.g. once it was paid). */
   reset: () => void;
 }
 
 const EMPTY_SELECTION = { activeZoneId: null, seats: {}, quantities: {} };
 
+/** What `persist` keeps in `localStorage`: the selection only, never orders or buyer data. */
+type PersistedBooking = Pick<BookingState, "eventId" | "activeZoneId" | "seats" | "quantities">;
+
+/**
+ * Brings a stored state of any earlier version to the current one. Version 0 also persisted the paid
+ * orders with the buyer's name and email: only the selection survives. Tolerates anything that isn't an object.
+ */
+export function migrateBookingState(persisted: unknown): PersistedBooking {
+  const stored = typeof persisted === "object" && persisted !== null ? (persisted as Partial<PersistedBooking>) : {};
+  return {
+    eventId: stored.eventId ?? null,
+    activeZoneId: stored.activeZoneId ?? null,
+    seats: stored.seats ?? {},
+    quantities: stored.quantities ?? {},
+  };
+}
+
 export const useBookingStore = create<BookingState>()(
   persist(
     (set, get) => ({
       eventId: null,
-      lastOrder: null,
-      orders: [],
       ...EMPTY_SELECTION,
 
       init: (eventId, activeZoneId) => {
@@ -100,35 +95,20 @@ export const useBookingStore = create<BookingState>()(
         set({ seats, quantities });
       },
 
-      confirmOrder: ({ eventId, lines, currency, method, buyerName, email }, orderId = createOrderId()) => {
-        const order: Order = {
-          id: orderId,
-          eventId,
-          lines,
-          ...getOrderTotals(lines),
-          currency,
-          method,
-          buyerName,
-          email,
-        };
-        set({ ...EMPTY_SELECTION, activeZoneId: get().activeZoneId, lastOrder: order, orders: [order, ...get().orders] });
-        return order;
-      },
-
-      reset: () => set({ eventId: null, lastOrder: null, ...EMPTY_SELECTION }),
+      reset: () => set({ eventId: null, ...EMPTY_SELECTION }),
     }),
     {
       name: "ticketera-booking",
       storage: createJSONStorage(() => localStorage),
       // Loaded after mount (see usePersistHydration) to match the server render.
       skipHydration: true,
-      partialize: ({ eventId, activeZoneId, seats, quantities, lastOrder, orders }) => ({
+      version: 1,
+      migrate: migrateBookingState,
+      partialize: ({ eventId, activeZoneId, seats, quantities }): PersistedBooking => ({
         eventId,
         activeZoneId,
         seats,
         quantities,
-        lastOrder,
-        orders,
       }),
     },
   ),

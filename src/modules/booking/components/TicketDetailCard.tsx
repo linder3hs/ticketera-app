@@ -1,18 +1,20 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
 import { CalendarPlus, ChevronLeft, ChevronRight, Clock, Download, MapPin, Calendar } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { QrPattern } from "@/components/ui/qr-pattern";
+import { cn } from "@/lib/utils";
+import { TicketQr } from "@/modules/booking/components/TicketQr";
+import { TICKET_STATUS_LABELS } from "@/modules/booking/components/ticket-status-labels";
+import type { MyOrder, MyOrderEvent } from "@/modules/booking/order.types";
+import { downloadIcs, downloadTicketsPdf, getValidTickets } from "@/modules/booking/ticket-export";
+import { EventCover } from "@/modules/event/components/EventCover";
 import { formatEventDateParts } from "@/modules/event/event.utils";
-import type { Order } from "@/modules/booking/booking.types";
-import { downloadIcs, downloadTicketsPdf, getOrderTickets, type ExportEvent } from "@/modules/booking/ticket-export";
 
 interface TicketDetailCardProps {
-  event: ExportEvent & { imageUrl: string; imageAlt: string };
-  order: Order;
+  event: MyOrderEvent;
+  order: MyOrder;
 }
 
 const NOTCH_CLASS = "absolute -top-3 size-6 rounded-full border border-border bg-muted";
@@ -23,21 +25,23 @@ const NAV_CLASS =
 export function TicketDetailCard({ event, order }: TicketDetailCardProps) {
   const [index, setIndex] = useState(0);
   const [isPdfLoading, setIsPdfLoading] = useState(false);
-  const tickets = getOrderTickets(order);
+  const tickets = order.tickets;
   const ticket = tickets[Math.min(index, tickets.length - 1)];
+  if (!ticket) return null;
+
   const date = formatEventDateParts(event.date);
 
   const details = [
     { label: "Zona", value: ticket.zoneName },
     { label: "Asiento", value: ticket.seatLabel ?? "Sin asiento asignado" },
-    { label: "Titular", value: order.buyerName },
-    { label: "Código", value: `${order.id}-${String(index + 1).padStart(2, "0")}` },
+    { label: "Titular", value: ticket.holderName },
+    { label: "Código", value: `${order.code}-${String(index + 1).padStart(2, "0")}` },
   ];
 
   return (
     <article className="flex flex-col overflow-hidden rounded-3xl border border-border bg-card lg:rounded-[28px]">
       <div className="relative h-40 bg-zinc-200 lg:h-[200px]">
-        <Image src={event.imageUrl} alt={event.imageAlt} fill sizes="(min-width: 1024px) 800px, 100vw" className="object-cover" />
+        <EventCover src={event.imageUrl} alt={event.imageAlt} sizes="(min-width: 1024px) 800px, 100vw" />
         <span className="absolute top-3 left-3 flex w-[54px] flex-col items-center rounded-[14px] bg-white py-1.5 lg:top-4 lg:left-4 lg:w-[60px] lg:rounded-2xl">
           <span className="text-[11px] font-bold tracking-widest text-primary">{date.month}</span>
           <span className="text-[22px] leading-none font-bold lg:text-2xl">{date.day}</span>
@@ -69,7 +73,7 @@ export function TicketDetailCard({ event, order }: TicketDetailCardProps) {
 
       <div className="flex flex-col items-center gap-6 px-5 pt-6 pb-6 md:flex-row md:items-center md:gap-9 lg:px-8 lg:pt-7 lg:pb-8">
         <div className="shrink-0 rounded-[18px] border border-border bg-white p-3">
-          <QrPattern seed={ticket.seed} className="size-[176px] lg:size-[176px]" />
+          <TicketQr ticket={ticket} className="size-[176px]" />
         </div>
 
         <div className="flex w-full flex-1 flex-col gap-[18px]">
@@ -110,14 +114,16 @@ export function TicketDetailCard({ event, order }: TicketDetailCardProps) {
             ))}
             <div className="flex flex-col gap-0.5">
               <dt className="text-xs text-muted-foreground">Estado</dt>
-              <dd className="text-[15px] font-semibold text-green-700 lg:text-base">Válida</dd>
+              <dd className={cn("text-[15px] font-semibold lg:text-base", ticket.status === "valid" ? "text-green-700" : "text-muted-foreground")}>
+                {TICKET_STATUS_LABELS[ticket.status]}
+              </dd>
             </div>
           </dl>
 
           <div className="grid grid-cols-2 gap-2.5 sm:flex">
             <Button
               variant="outline"
-              disabled={isPdfLoading}
+              disabled={isPdfLoading || getValidTickets(order).length === 0}
               onClick={async () => {
                 setIsPdfLoading(true);
                 try {

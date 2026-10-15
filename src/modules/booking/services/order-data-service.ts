@@ -1,0 +1,89 @@
+import { and, asc, eq, inArray, sql, type SQL } from "drizzle-orm";
+
+import { db } from "@/db";
+import { category, event, eventSeat, eventZone, orderItem, orders, ticket, venue, venueSeat } from "@/db/schema";
+import type { OrderTicketRow } from "@/modules/booking/order.utils";
+
+/** Orders that have tickets (or had them): the ones "Mis entradas" lists. */
+const ORDERS_WITH_TICKETS = ["paid", "partially_refunded", "refunded"] as const;
+
+/** Columns of an `OrderTicketRow` that come from the order, its event, venue and category. */
+const orderColumns = {
+  orderId: orders.id,
+  orderCode: orders.code,
+  orderStatus: orders.status,
+  totalCents: orders.totalCents,
+  buyerName: orders.buyerName,
+  buyerEmail: orders.buyerEmail,
+  eventId: event.id,
+  eventSlug: event.slug,
+  eventTitle: event.title,
+  categoryLabel: category.label,
+  coverImageUrl: event.coverImageUrl,
+  coverAlt: event.coverAlt,
+  startsAt: event.startsAt,
+  currency: event.currency,
+  venueName: venue.name,
+  venueAddress: venue.address,
+  venueCity: venue.city,
+};
+
+/**
+ * One row per ticket of the user's orders that match `condition`, newest paid order first and each
+ * order's tickets by zone and seat. Callers always include `orders.user_id` in `condition`.
+ */
+function selectTicketRows(condition: SQL | undefined): Promise<OrderTicketRow[]> {
+  return db
+    .select({
+      ...orderColumns,
+      ticketId: ticket.id,
+      ticketCode: ticket.code,
+      ticketStatus: ticket.status,
+      holderName: ticket.holderName,
+      zoneName: eventZone.name,
+      seatRow: venueSeat.rowLabel,
+      seatNumber: venueSeat.seatNumber,
+    })
+    .from(ticket)
+    .innerJoin(orderItem, eq(orderItem.id, ticket.orderItemId))
+    .innerJoin(orders, eq(orders.id, orderItem.orderId))
+    .innerJoin(event, eq(event.id, orders.eventId))
+    .innerJoin(venue, eq(venue.id, event.venueId))
+    .innerJoin(category, eq(category.id, event.categoryId))
+    .innerJoin(eventZone, eq(eventZone.id, orderItem.eventZoneId))
+    .leftJoin(eventSeat, eq(eventSeat.id, orderItem.eventSeatId))
+    .leftJoin(venueSeat, eq(venueSeat.id, eventSeat.venueSeatId))
+    .where(condition)
+    .orderBy(
+      sql`${orders.paidAt} desc nulls last`,
+      asc(orders.id),
+      asc(eventZone.name),
+      asc(venueSeat.rowLabel),
+      asc(venueSeat.seatNumber),
+      asc(ticket.id),
+    );
+}
+
+/** One row per ticket of the user's orders with tickets (`paid`, `partially_refunded`, `refunded`). */
+export function listTicketRows(userId: string): Promise<OrderTicketRow[]> {
+  return selectTicketRows(and(eq(orders.userId, userId), inArray(orders.status, [...ORDERS_WITH_TICKETS])));
+}
+
+/** One row per ticket of the user's order with that code, whatever its status; empty if it has none or isn't theirs. */
+export function findTicketRows(userId: string, code: string): Promise<OrderTicketRow[]> {
+  return selectTicketRows(and(eq(orders.userId, userId), eq(orders.code, code)));
+}
+
+/** The user's order with that code on its own (for one that has no tickets yet); `null` if it doesn't exist or isn't theirs. */
+export async function findOrderRow(userId: string, code: string): Promise<OrderTicketRow | null> {
+  const [row] = await db
+    .select(orderColumns)
+    .from(orders)
+    .innerJoin(event, eq(event.id, orders.eventId))
+    .innerJoin(venue, eq(venue.id, event.venueId))
+    .innerJoin(category, eq(category.id, event.categoryId))
+    .where(and(eq(orders.userId, userId), eq(orders.code, code)))
+    .limit(1);
+  if (!row) return null;
+  return { ...row, ticketId: null, ticketCode: null, ticketStatus: null, holderName: null, zoneName: null, seatRow: null, seatNumber: null };
+}

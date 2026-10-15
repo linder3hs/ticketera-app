@@ -1,15 +1,13 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
-import { QrPattern } from "@/components/ui/qr-pattern";
+import { TicketQr } from "@/modules/booking/components/TicketQr";
+import type { MyOrderEvent, MyTicket } from "@/modules/booking/order.types";
 import { EventCover } from "@/modules/event/components/EventCover";
 import { formatEventDateParts } from "@/modules/event/event.utils";
-import type { Event } from "@/modules/event/event.types";
-import type { OrderTicket } from "@/modules/booking/ticket-export";
-
 
 interface TicketPassProps {
-  event: Pick<Event, "title" | "category" | "date" | "venue" | "city" | "imageUrl">;
-  ticket: OrderTicket;
+  event: Pick<MyOrderEvent, "title" | "category" | "date" | "venue" | "city" | "imageUrl">;
+  ticket: MyTicket;
   index: number;
   count: number;
   totalLabel: string;
@@ -60,7 +58,7 @@ export function TicketPass({ event, ticket, index, count, totalLabel, onPrevious
       <div className="relative flex shrink-0 flex-col items-center justify-center gap-2 border-t-[1.5px] border-dashed border-zinc-300 p-[22px] md:w-[220px] md:border-t-0 md:border-l-[1.5px] md:p-4">
         <span className={`${NOTCH_CLASS} -top-3 -left-3`} />
         <span className={`${NOTCH_CLASS} -top-3 -right-3 md:top-auto md:right-auto md:-bottom-3 md:-left-3`} />
-        <QrPattern seed={ticket.seed} className="size-[168px] md:size-[120px]" />
+        <TicketQr ticket={ticket} className="size-[168px] md:size-[120px]" />
         <span aria-live="polite" className="text-[13px] whitespace-nowrap text-muted-foreground">
           Entrada {index + 1} de {count}
         </span>

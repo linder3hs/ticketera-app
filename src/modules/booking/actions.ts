@@ -4,10 +4,14 @@ import { pgErrorCode } from "@/lib/pg-error";
 import { startCheckoutSchema } from "@/modules/booking/buyer.schema";
 import type { StartCheckoutResult } from "@/modules/booking/checkout.types";
 import { CHECKOUT_MESSAGES } from "@/modules/booking/checkout.utils";
+import { getMyOrderSchema } from "@/modules/booking/order.schema";
+import type { MyOrderResult } from "@/modules/booking/order.types";
+import { ORDER_MESSAGES } from "@/modules/booking/order.utils";
 import { reserveTicketsSchema } from "@/modules/booking/reservation.schema";
 import type { ReserveTicketsResult } from "@/modules/booking/reservation.types";
 import { RESERVATION_MESSAGES } from "@/modules/booking/reservation.utils";
 import { startCheckout } from "@/modules/booking/services/checkout-service";
+import { findMyOrder } from "@/modules/booking/services/order-service";
 import { reserveTickets } from "@/modules/booking/services/reservation-service";
 import { getPublicEventDetail } from "@/modules/event/services/event-public-service";
 import { requireRole } from "@/modules/user/current-user";
@@ -72,5 +76,23 @@ export async function startCheckoutAction(input: unknown): Promise<StartCheckout
   } catch (error) {
     console.error("startCheckoutAction", toLoggableError(error));
     return { ok: false, error: CHECKOUT_MESSAGES.generic };
+  }
+}
+
+/**
+ * The signed-in customer's order with that code, or `null` if it doesn't exist or isn't theirs
+ * (indistinguishable on purpose). The client sends only the code; the owner comes from the session.
+ * Signed out → sign-in. Failures are logged without personal data and answered with a generic message.
+ */
+export async function getMyOrderAction(input: unknown): Promise<MyOrderResult> {
+  const user = await requireRole("customer");
+  const parsed = getMyOrderSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: ORDER_MESSAGES.invalid };
+
+  try {
+    return { ok: true, data: await findMyOrder(user.id, parsed.data.code) };
+  } catch (error) {
+    console.error("getMyOrderAction", toLoggableError(error));
+    return { ok: false, error: ORDER_MESSAGES.generic };
   }
 }
