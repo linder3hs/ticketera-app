@@ -77,6 +77,13 @@ async function selectPublicEvents(where: SQL | undefined, limit?: number): Promi
   return toPublicEvents(rows, await selectPublicZones(rows.map((row) => row.id)));
 }
 
+/** Events of `ids` visible in public at `now`, soonest first; ids that are not public are skipped. */
+export async function listPublicEventsByIds(ids: string[], now = new Date()): Promise<Event[]> {
+  if (ids.length === 0) return [];
+
+  return selectPublicEvents(and(isPublic(now), inArray(event.id, ids)));
+}
+
 /** Every category by label; the public id is its slug (`?categoria=<slug>`). */
 export async function listPublicCategories(): Promise<EventCategory[]> {
   const rows = await db

@@ -10,6 +10,7 @@ import type { EventDetail } from "@/modules/event/event.types";
 
 interface EventDetailHeroProps {
   event: EventDetail;
+  isFavorite: boolean;
 }
 
 const ICON_BUTTON_CLASS =
@@ -20,7 +21,7 @@ const ICON_BUTTON_CLASS =
  * on top on phones; the buy CTA is only here from `lg` (phones use the
  * bottom purchase bar).
  */
-export function EventDetailHero({ event }: EventDetailHeroProps) {
+export function EventDetailHero({ event, isFavorite }: EventDetailHeroProps) {
   const isSoldOut = event.status === "sold-out";
 
   return (
@@ -71,7 +72,7 @@ export function EventDetailHero({ event }: EventDetailHeroProps) {
               <ArrowRight className="size-[18px]" aria-hidden="true" />
             </Link>
           )}
-          <SaveEventButton className={ICON_BUTTON_CLASS} />
+          <SaveEventButton eventId={event.id} initialSaved={isFavorite} className={ICON_BUTTON_CLASS} />
           <button type="button" aria-label="Compartir evento" className={cn(ICON_BUTTON_CLASS, "cursor-pointer")}>
             <Share2 className="size-5" aria-hidden="true" />
           </button>

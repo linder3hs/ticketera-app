@@ -1,27 +1,40 @@
 "use client";
 
-import { useState } from "react";
+import { Show, SignInButton } from "@clerk/nextjs";
 import { Heart } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { useEventFavorite } from "@/modules/favorite/hooks/use-event-favorite";
 
 interface SaveEventButtonProps {
+  eventId: string;
+  initialSaved: boolean;
   className?: string;
 }
 
-/** Heart toggle; local state only until there are user accounts. */
-export function SaveEventButton({ className }: SaveEventButtonProps) {
-  const [isSaved, setIsSaved] = useState(false);
+/** Heart toggle backed by the user's favorites; signed-out visitors get Clerk's sign-in instead. */
+export function SaveEventButton({ eventId, initialSaved, className }: SaveEventButtonProps) {
+  const { isSaved, isPending, toggle } = useEventFavorite(eventId, initialSaved);
 
-  return (
+  const renderButton = (onClick?: () => void) => (
     <button
       type="button"
-      aria-label="Guardar evento"
+      aria-label={isSaved ? "Quitar de favoritos" : "Guardar evento"}
       aria-pressed={isSaved}
-      onClick={() => setIsSaved((saved) => !saved)}
-      className={cn("cursor-pointer", className)}
+      disabled={isPending}
+      onClick={onClick}
+      className={cn("cursor-pointer disabled:cursor-wait disabled:opacity-70", className)}
     >
       <Heart className={cn("size-5", isSaved && "fill-current text-rose-400")} aria-hidden="true" />
     </button>
+  );
+
+  return (
+    <>
+      <Show when="signed-in">{renderButton(toggle)}</Show>
+      <Show when="signed-out">
+        <SignInButton>{renderButton()}</SignInButton>
+      </Show>
+    </>
   );
 }

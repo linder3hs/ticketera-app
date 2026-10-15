@@ -17,6 +17,8 @@ import {
   listPublicCategories,
   listRelatedEvents,
 } from "@/modules/event/services/event-public-service";
+import { isEventFavorite } from "@/modules/favorite/services/favorite-service";
+import { getCurrentUser } from "@/modules/user/current-user";
 
 export async function generateMetadata({ params }: PageProps<"/events/[slug]">): Promise<Metadata> {
   const event = await getPublicEventDetail((await params).slug);
@@ -34,7 +36,11 @@ export default async function EventDetailPage({ params }: PageProps<"/events/[sl
   const [event, categories] = await Promise.all([getPublicEventDetail(slug), listPublicCategories()]);
   if (!event) notFound();
 
-  const [venue, related] = await Promise.all([getEventVenueMap(event), listRelatedEvents(event.id)]);
+  const [venue, related, isFavorite] = await Promise.all([
+    getEventVenueMap(event),
+    listRelatedEvents(event.id),
+    getCurrentUser().then((user) => (user ? isEventFavorite(user.id, event.id) : false)),
+  ]);
   const category = categories.find((item) => item.label === event.category);
 
   return (
@@ -66,7 +72,7 @@ export default async function EventDetailPage({ params }: PageProps<"/events/[sl
           </nav>
 
           <div className="pt-3 lg:pt-0">
-            <EventDetailHero event={event} />
+            <EventDetailHero event={event} isFavorite={isFavorite} />
           </div>
 
           <div className="grid grid-cols-[minmax(0,1fr)] gap-8 pt-8 pb-10 lg:grid-cols-[minmax(0,1fr)_400px] lg:items-start lg:gap-14 lg:pt-14 lg:pb-18">
