@@ -1,21 +1,42 @@
+import Link from "next/link";
+
 import { Logo } from "@/components/Logo";
 
 const FOOTER_COLUMNS = [
   {
     title: "Compañía",
-    links: ["Sobre nosotros", "Empleo", "Prensa", "Blog"],
+    links: [
+      { label: "Sobre nosotros", href: "#" },
+      { label: "Empleo", href: "#" },
+      { label: "Prensa", href: "#" },
+      { label: "Blog", href: "#" },
+    ],
   },
   {
     title: "Ayuda",
-    links: ["Centro de ayuda", "Contacto", "Cómo comprar", "Reembolsos"],
+    links: [
+      { label: "Centro de ayuda", href: "#" },
+      { label: "Contacto", href: "#" },
+      { label: "Cómo comprar", href: "#" },
+      { label: "Reembolsos", href: "/refund-policy" },
+    ],
   },
   {
     title: "Legal",
-    links: ["Términos y condiciones", "Privacidad", "Cookies"],
+    links: [
+      { label: "Términos y condiciones", href: "#" },
+      { label: "Privacidad", href: "#" },
+      { label: "Cookies", href: "#" },
+    ],
   },
   {
     title: "Síguenos",
-    links: ["Instagram", "Facebook", "X (Twitter)", "TikTok"],
+    links: [
+      { label: "Instagram", href: "#" },
+      { label: "Facebook", href: "#" },
+      { label: "X (Twitter)", href: "#" },
+      { label: "TikTok", href: "#" },
+    ],
   },
 ];
 
@@ -41,13 +62,13 @@ export function Footer() {
                 </h3>
                 <ul className="flex flex-col gap-2.5">
                   {column.links.map((link) => (
-                    <li key={link}>
-                      <a
-                        href="#"
+                    <li key={link.label}>
+                      <Link
+                        href={link.href}
                         className="rounded-lg text-sm text-muted-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
                       >
-                        {link}
-                      </a>
+                        {link.label}
+                      </Link>
                     </li>
                   ))}
                 </ul>

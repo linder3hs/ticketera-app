@@ -1,13 +1,20 @@
-import { and, asc, eq, inArray, sql, type SQL } from "drizzle-orm";
+import { and, asc, eq, inArray, sql, type AnyColumn, type SQL } from "drizzle-orm";
 
 import { db } from "@/db";
-import { category, event, eventSeat, eventZone, orderItem, orders, ticket, venue, venueSeat } from "@/db/schema";
+import { category, event, eventSeat, eventZone, orderItem, orders, refund, ticket, venue, venueSeat } from "@/db/schema";
+import type { RefundReason } from "@/modules/booking/order.types";
 import type { OrderTicketRow } from "@/modules/booking/order.utils";
+import type { RefundStatus } from "@/modules/payment/payment.types";
 
 /** Orders that have tickets (or had them): the ones "Mis entradas" lists. */
 const ORDERS_WITH_TICKETS = ["paid", "partially_refunded", "refunded"] as const;
 
-/** Columns of an `OrderTicketRow` that come from the order, its event, venue and category. */
+/** A column of the order's most recent refund (correlated subquery); `null` when it has none. */
+function lastRefund<T>(column: AnyColumn) {
+  return sql<T | null>`(select ${column} from ${refund} where ${refund.orderId} = ${orders.id} order by ${refund.createdAt} desc, ${refund.id} desc limit 1)`;
+}
+
+/** Columns of an `OrderTicketRow` that come from the order, its event, venue and category, and its last refund. */
 const orderColumns = {
   orderId: orders.id,
   orderCode: orders.code,
@@ -26,6 +33,9 @@ const orderColumns = {
   venueName: venue.name,
   venueAddress: venue.address,
   venueCity: venue.city,
+  refundStatus: lastRefund<RefundStatus>(refund.status),
+  refundReason: lastRefund<RefundReason>(refund.reason),
+  refundAmountCents: lastRefund<number>(refund.amountCents),
 };
 
 /**

@@ -15,9 +15,18 @@ function toSnapshot(intent: { id: string; client_secret: string | null; status: 
   return { id: intent.id, clientSecret: intent.client_secret, status: intent.status };
 }
 
-/** The verified event, narrowed to its PaymentIntent and latest charge (both null for any other object). */
+/** The verified event, narrowed to its PaymentIntent and latest charge, or to its refund (ids are null for any other object). */
 function toWebhookEvent(event: Stripe.Event): PaymentWebhookEvent {
   const object = event.data.object;
+  if (object.object === "refund") {
+    return {
+      id: event.id,
+      type: event.type,
+      paymentIntentId: null,
+      chargeId: null,
+      refund: { id: object.id, status: object.status ?? "", metadataRefundId: object.metadata?.refund_id ?? null },
+    };
+  }
   if (object.object !== "payment_intent") {
     return { id: event.id, type: event.type, paymentIntentId: null, chargeId: null };
   }
@@ -51,10 +60,15 @@ export const stripePaymentGateway: PaymentGateway & PaymentWebhookGateway = {
     }
   },
 
-  async refundPayment(paymentIntentId, idempotencyKey) {
+  async refundPayment(paymentIntentId, idempotencyKey, options) {
     try {
       const refund = await getStripeClient().refunds.create(
-        { payment_intent: paymentIntentId, reverse_transfer: true, refund_application_fee: true },
+        {
+          payment_intent: paymentIntentId,
+          reverse_transfer: true,
+          refund_application_fee: true,
+          ...(options?.metadata ? { metadata: options.metadata } : {}),
+        },
         { idempotencyKey },
       );
       return { refundId: refund.id };

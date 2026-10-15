@@ -58,6 +58,7 @@ export const refundStatus = pgEnum("refund_status", [
   "pending",
   "succeeded",
   "failed",
+  "canceled",
 ]);
 export const ticketStatus = pgEnum("ticket_status", [
   "valid",

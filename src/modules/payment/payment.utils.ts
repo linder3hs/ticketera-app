@@ -86,6 +86,9 @@ export function resolveConfirmation(result: ConfirmationResult): ConfirmationOut
 export const PAYMENT_EVENT_TYPES = {
   succeeded: "payment_intent.succeeded",
   failed: "payment_intent.payment_failed",
+  refundCreated: "refund.created",
+  refundUpdated: "refund.updated",
+  refundFailed: "refund.failed",
 } as const;
 
 /**

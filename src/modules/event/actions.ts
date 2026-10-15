@@ -10,11 +10,13 @@ import type { EventActionResult, PolicyActor } from "@/modules/event/event-write
 import {
   createEvent,
   deleteEvent,
+  retryEventRefunds,
   setEventFeatured,
   setEventStatus,
   updateEvent,
 } from "@/modules/event/services/event-write-service";
 import { listManagedEvents, resolvePolicyActor } from "@/modules/event/services/event-list-service";
+import type { DispatchResult } from "@/modules/refund/refund.types";
 import { requireRole } from "@/modules/user/current-user";
 
 const INVALID_MESSAGE = "Datos inválidos.";
@@ -43,16 +45,17 @@ export async function listEventsAction(input: unknown): Promise<EventsResult> {
 /**
  * Runs a mutation as the signed-in organizer (or admin) and refreshes the panel
  * and the landing (every event change can alter it). The actor comes from the
- * session and the `organizer` row; the policy decision is the service's.
+ * session and the `organizer` row; the policy decision is the service's. The
+ * callback also gets the signed-in `user.id` (never taken from the input).
  * Failures are logged and answered with a generic message.
  */
 async function run<T = void>(
   name: string,
-  mutation: (actor: PolicyActor) => Promise<EventActionResult<T>>,
+  mutation: (actor: PolicyActor, userId: string) => Promise<EventActionResult<T>>,
 ): Promise<EventActionResult<T>> {
   const user = await requireRole("organizer");
   try {
-    const result = await mutation(await resolvePolicyActor(user));
+    const result = await mutation(await resolvePolicyActor(user), user.id);
     if (result.ok) {
       revalidatePath("/organizer");
       revalidatePath("/");
@@ -92,7 +95,14 @@ export async function deleteEventAction(input: unknown): Promise<EventActionResu
 export async function setEventStatusAction(input: unknown): Promise<EventActionResult> {
   const parsed = setStatusSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: INVALID_MESSAGE };
-  return run("setEventStatusAction", (actor) => setEventStatus(actor, parsed.data.id, parsed.data.status));
+  return run("setEventStatusAction", (actor, userId) => setEventStatus(actor, parsed.data.id, parsed.data.status, userId));
+}
+
+/** Re-sends the pending refunds of a cancelled event. Whether the actor may is the service's call. */
+export async function retryEventRefundsAction(input: unknown): Promise<EventActionResult<DispatchResult>> {
+  const parsed = eventIdSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: INVALID_MESSAGE };
+  return run("retryEventRefundsAction", (actor, userId) => retryEventRefunds(actor, userId, parsed.data.id));
 }
 
 /** Marks or unmarks the event as featured on the landing. Whether the actor is a moderator is the service's call. */

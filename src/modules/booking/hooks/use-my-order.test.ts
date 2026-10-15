@@ -28,6 +28,7 @@ const order: MyOrder = {
     city: "Lima",
     currency: "PEN",
   },
+  refund: null,
   tickets: [],
 };
 

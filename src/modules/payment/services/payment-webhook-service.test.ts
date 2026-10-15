@@ -19,6 +19,7 @@ import {
   hasProcessedStripeEvent,
   markStripeEventProcessed,
 } from "@/modules/payment/services/stripe-event-service";
+import { confirmRefund } from "@/modules/refund/services/refund-service";
 
 vi.mock("@/modules/payment/services/payment-fulfillment-service", () => ({
   findPaymentContext: vi.fn(),
@@ -29,6 +30,7 @@ vi.mock("@/modules/payment/services/stripe-event-service", () => ({
   hasProcessedStripeEvent: vi.fn(),
   markStripeEventProcessed: vi.fn(),
 }));
+vi.mock("@/modules/refund/services/refund-service", () => ({ confirmRefund: vi.fn() }));
 // The real gateway pulls in the Stripe SDK; tests inject a fake instead.
 vi.mock("@/modules/payment/services/stripe-payment-gateway", () => ({ stripePaymentGateway: {} }));
 
@@ -371,5 +373,71 @@ describe("handlePaymentWebhook: aborted conversion (D7)", () => {
     expect(cancelRefundedOrder).not.toHaveBeenCalled();
     expect(markStripeEventProcessed).not.toHaveBeenCalled();
     expect(console.error).toHaveBeenCalledWith("[stripe] payment webhook failed", "connection reset");
+  });
+});
+
+describe("handlePaymentWebhook: refund events (D5)", () => {
+  const refund = { id: "re_9", status: "succeeded", metadataRefundId: "refund-row-1" };
+
+  function refundEvent(type: string, overrides: Partial<PaymentWebhookEvent> = {}): PaymentWebhookEvent {
+    return { id: "evt_r1", type, paymentIntentId: null, chargeId: null, refund, ...overrides };
+  }
+
+  it.each(["refund.created", "refund.updated", "refund.failed"])(
+    "delegates %s to confirmRefund and answers 200",
+    async (type) => {
+      gateway.parseWebhook.mockReturnValue(refundEvent(type));
+
+      expect(await deliver()).toEqual({ status: 200 });
+      expect(hasProcessedStripeEvent).toHaveBeenCalledWith("evt_r1");
+      expect(confirmRefund).toHaveBeenCalledTimes(1);
+      expect(confirmRefund).toHaveBeenCalledWith({ id: "evt_r1", type, refund });
+      expect(findPaymentContext).not.toHaveBeenCalled();
+      expect(fulfillOrder).not.toHaveBeenCalled();
+      expect(gateway.refundPayment).not.toHaveBeenCalled();
+    },
+  );
+
+  it("does not call confirmRefund for an event already processed", async () => {
+    gateway.parseWebhook.mockReturnValue(refundEvent("refund.updated"));
+    vi.mocked(hasProcessedStripeEvent).mockResolvedValue(true);
+
+    expect(await deliver()).toEqual({ status: 200 });
+    expect(confirmRefund).not.toHaveBeenCalled();
+  });
+
+  it("ignores a refund event without a refund object", async () => {
+    gateway.parseWebhook.mockReturnValue(refundEvent("refund.updated", { refund: undefined }));
+
+    expect(await deliver()).toEqual({ status: 200 });
+    expect(hasProcessedStripeEvent).not.toHaveBeenCalled();
+    expect(confirmRefund).not.toHaveBeenCalled();
+  });
+
+  it("returns 500 when confirmRefund fails, and the retry completes", async () => {
+    gateway.parseWebhook.mockReturnValue(refundEvent("refund.updated"));
+    vi.mocked(confirmRefund).mockRejectedValueOnce(new Error("db down"));
+
+    expect(await deliver()).toEqual({ status: 500 });
+    expect(console.error).toHaveBeenCalledWith("[stripe] payment webhook failed", "db down");
+
+    expect(await deliver()).toEqual({ status: 200 });
+    expect(confirmRefund).toHaveBeenCalledTimes(2);
+  });
+
+  it("returns 400 without touching refunds when the signature is invalid", async () => {
+    gateway.parseWebhook.mockImplementation(() => {
+      throw new WebhookSignatureError();
+    });
+
+    expect(await deliver("bad")).toEqual({ status: 400 });
+    expect(confirmRefund).not.toHaveBeenCalled();
+    expect(hasProcessedStripeEvent).not.toHaveBeenCalled();
+  });
+
+  it("leaves payment_intent.succeeded untouched by the refund path", async () => {
+    expect(await deliver()).toEqual({ status: 200 });
+    expect(fulfillOrder).toHaveBeenCalledTimes(1);
+    expect(confirmRefund).not.toHaveBeenCalled();
   });
 });
