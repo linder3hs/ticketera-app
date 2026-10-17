@@ -21,7 +21,7 @@ La cuenta de AWS ("Building Things") pertenece a una organización de AWS con un
 
 - **Solo se puede usar `us-east-2` (Ohio)** para EC2, RDS, ECR, SSM, Lambda y EventBridge. En las demás regiones probadas esos servicios están denegados.
 - **OIDC está denegado** (`iam:CreateOpenIDConnectProvider`), así que GitHub Actions no puede asumir un rol sin llaves.
-- **Probablemente no se pueda crear un certificado ACM para CloudFront** (debe vivir en us-east-1). No se probó; un dominio propio con HTTPS en CloudFront podría no ser posible en esta cuenta.
+- **ACM sí acepta solicitudes en us-east-1** (se verificó con una solicitud de prueba, ya eliminada), por lo que un dominio propio con HTTPS en CloudFront debería ser posible. Falta probarlo con un dominio real.
 - **El plan gratuito limita RDS:** retención de backups máxima de 1 día.
 - Funcionan: CloudFront, S3, IAM (roles y usuarios), CloudWatch Logs, Budgets y Cost Explorer.
 
@@ -180,7 +180,7 @@ Fuentes sobre App Runner y ECS Express Mode: [aviso de disponibilidad de App Run
 
 ## 11. Opcionales
 
-- **Dominio propio:** requiere un certificado ACM en us-east-1 (probablemente denegado por la SCP), un dominio y una zona en Route 53 (~US$13/año y ~US$0,50/mes, fuera del presupuesto).
+- **Dominio propio:** requiere un dominio (~US$13/año) y un certificado ACM en us-east-1 (gratis; permitido por la SCP según la prueba). La zona en Route 53 cuesta ~US$0,50/mes; se puede usar otro DNS. Es además el requisito para pasar Clerk a producción.
 - **Job de reservas:** EventBridge Scheduler (us-east-2) con un destino de API que haga `POST /api/jobs/release-holds` cada minuto con un secreto compartido. Falta crear la ruta en la app.
 
 ## 12. Operación
