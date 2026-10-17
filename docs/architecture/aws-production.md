@@ -160,7 +160,7 @@ URLs de los webhooks: `https://d35ycaybluucd9.cloudfront.net/api/webhooks/clerk`
 - **El tramo CloudFront a EC2 va en HTTP.** Aceptable con credenciales sandbox y datos de prueba.
 - **Memoria justa:** `t3.micro` tiene 1 GB (más 2 GB de swap). Revisar `free -m`; si no alcanza, `t3.small`.
 - **Backups de RDS de 1 día** y sin protección contra borrado (para poder apagarlo).
-- **Base vacía:** las migraciones crean el esquema, pero no hay eventos. El script `db:seed` necesita organizadores existentes (por correo), que solo existen tras un primer login con Clerk y la asignación del rol.
+- **Datos de la demo:** el seed (`src/db/seed.ts`) corrió en RDS el 2026-10-16: 10 eventos publicados, 10 recintos, 50 zonas y 7.160 asientos. Como el seed solo busca organizadores que ya existan, antes se copiaron desde Neon (misma instancia de desarrollo de Clerk) las dos cuentas organizadoras por defecto, con su `clerk_id`, para que el login en AWS caiga en esas filas. Reejecutar el seed es idempotente.
 
 ## 10. Qué se quitó y cuándo volver
 
@@ -220,6 +220,6 @@ Se mantiene: Clerk, Stripe Connect, reglas de límite entre módulos y webhooks 
 ## 14. Pendientes
 
 1. Registrar los tres webhooks (Clerk, Stripe, Stripe Connect) con la URL de CloudFront y cargar sus secretos (§7).
-2. Datos de la demo: primer login con Clerk, asignar rol `organizer` y entonces `db:seed` (o crear eventos desde el panel).
+2. ~~Datos de la demo~~ (hecho, ver §9). Para volver a ejecutar el seed en AWS: SSM Run Command en la instancia con `docker run --rm --env-file /opt/ticketera/.env <imagen>-migrate npx tsx src/db/seed.ts`.
 3. Verificar un flujo de compra de punta a punta (reserva y pago con tarjeta de prueba): valida el `batch` sobre RDS.
 4. Decidir si se activa el job de liberación de reservas.
