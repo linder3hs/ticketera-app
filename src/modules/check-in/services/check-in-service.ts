@@ -18,7 +18,7 @@ import { resolvePolicyActor } from "@/modules/event/services/event-list-service"
 import type { UserRecord } from "@/modules/user/services/user-service";
 
 /**
- * Check-in at an event's door. `db` is neon-http (no interactive transactions),
+ * Check-in at an event's door. `db` has no interactive transactions (`db.batch` is one transaction),
  * so the `ok` path is one atomic CTE (the conditional `UPDATE` decides, not a
  * previous read) and the other results are a lookup plus an insert; see the
  * spec's "Concurrencia". User-facing errors are generic Spanish; details go to

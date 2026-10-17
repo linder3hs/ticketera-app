@@ -6,7 +6,7 @@ import { stripeEventInsert } from "@/modules/payment/services/stripe-event-servi
 
 /**
  * Data side of `payment_intent.succeeded` (see the stripe-payment-webhook
- * spec's "Batch de conversión"). `db` is neon-http: no interactive
+ * spec's "Batch de conversión"). `db` has no interactive
  * transactions, so the conversion is one `db.batch` (a single non-interactive
  * READ COMMITTED transaction) whose guards abort it by raising a Postgres
  * error (`1 / 0` on a count mismatch → 22012); a guard that just affected 0

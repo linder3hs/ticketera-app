@@ -29,7 +29,7 @@ import {
 
 /**
  * Temporary holds (see the reservation-hold spec's "Mecanismo de aborto").
- * `db` is neon-http: no interactive transactions, so a hold is one `db.batch`
+ * `db` has no interactive transactions (`db.batch` is one transaction), so a hold is one `db.batch`
  * (a single non-interactive transaction) whose guards abort it by raising a
  * Postgres error (division by zero on a count mismatch, or the capacity
  * CHECK); a guard that just affects 0 rows would not roll anything back.

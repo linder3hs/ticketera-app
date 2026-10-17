@@ -47,7 +47,7 @@ import { cancelEventAndRefund, retryEventRefunds as retryRefunds } from "@/modul
 import { can } from "@/modules/user/user.permissions";
 
 /**
- * Event writes. `db` is neon-http (no interactive transactions), so: create is
+ * Event writes. `db` has no interactive transactions (`db.batch` is one transaction), so: create is
  * one atomic `db.batch`; every statement that depends on sales carries its
  * guard in the `WHERE`; status changes are compare-and-set. The decision comes
  * from the pure policy with facts read right before writing. See the spec's

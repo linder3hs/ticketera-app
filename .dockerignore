@@ -1,0 +1,14 @@
+node_modules
+.next
+.git
+.github
+.env*
+!.env.example
+.claude
+docs
+deploy
+coverage
+*.log
+.DS_Store
+Dockerfile
+.dockerignore

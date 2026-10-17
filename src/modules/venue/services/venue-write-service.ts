@@ -35,7 +35,7 @@ import type {
 import { buildZoneShape, generateSeats as buildSeatGrid } from "@/modules/venue/venue.utils";
 
 /**
- * Venue writes. `db` is neon-http (no interactive transactions), so: every
+ * Venue writes. `db` has no interactive transactions (`db.batch` is one transaction), so: every
  * statement that depends on sales or references carries its guard in the
  * `WHERE`; multi-statement changes go in one `db.batch`. The decision comes
  * from the pure policy with facts read right before writing, and `created_by`

@@ -9,7 +9,7 @@ import type { DispatchableRefund, FinalizeRefundInput, WebhookRefundRow } from "
 
 /**
  * Data side of the event refunds (see the event-cancellation-refunds spec, D2-D5).
- * `db` is neon-http: no interactive transactions, so each step is a `db.batch`.
+ * `db` has no interactive transactions (`db.batch` is one transaction), so each step is a `db.batch`.
  * The guards here are not `1 / 0` aborts: a statement that affects 0 rows is the
  * intended idempotent no-op (a repeated cancel, a retry); only the `stripe_event`
  * primary key aborts a twin webhook delivery (23505).
