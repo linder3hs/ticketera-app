@@ -5,8 +5,9 @@ import { z } from "zod";
 
 import { eventListQuerySchema } from "@/modules/event/event-list.schema";
 import type { EventsResult } from "@/modules/event/event-list.types";
-import { createEventWriteSchema } from "@/modules/event/event-write.schema";
-import type { EventActionResult, PolicyActor } from "@/modules/event/event-write.types";
+import { coverUploadSchema, createEventWriteSchema } from "@/modules/event/event-write.schema";
+import type { CoverUpload, EventActionResult, PolicyActor } from "@/modules/event/event-write.types";
+import { createCoverUpload } from "@/modules/event/services/cover-upload-service";
 import {
   createEvent,
   deleteEvent,
@@ -103,6 +104,20 @@ export async function retryEventRefundsAction(input: unknown): Promise<EventActi
   const parsed = eventIdSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: INVALID_MESSAGE };
   return run("retryEventRefundsAction", (actor, userId) => retryEventRefunds(actor, userId, parsed.data.id));
+}
+
+/** Presigned upload for a new cover; the browser posts the file straight to S3. */
+export async function createCoverUploadAction(input: unknown): Promise<EventActionResult<CoverUpload>> {
+  await requireRole("organizer");
+  const parsed = coverUploadSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "Usa una imagen JPG, PNG o WebP." };
+
+  try {
+    return { ok: true, data: await createCoverUpload(parsed.data.contentType) };
+  } catch (error) {
+    console.error("createCoverUploadAction", error);
+    return { ok: false, error: "No pudimos preparar la subida. Intenta de nuevo." };
+  }
 }
 
 /** Marks or unmarks the event as featured on the landing. Whether the actor is a moderator is the service's call. */

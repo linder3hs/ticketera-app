@@ -38,6 +38,7 @@ La cuenta de AWS ("Building Things") pertenece a una organización de AWS con un
 | CI/CD | **GitHub Actions** con las llaves del usuario IAM `ticketera-ci` (secretos del repo) y **SSM Run Command** | OIDC bloqueado; sin SSH ni puertos de administración abiertos |
 | Job de reservas | **EventBridge Scheduler** llamando a la URL (opcional, no creado) | La disponibilidad ya ignora reservas vencidas |
 | Logs | **CloudWatch Logs** `/ticketera/app`, retención 14 días | Dentro de la capa gratuita |
+| Portadas de eventos | **S3** privado, servido por la misma CloudFront en `/covers/*` (OAC); el navegador sube directo con un **POST prefirmado** | Sin pasar archivos por la EC2; S3 aplica tipo y tamaño (≤ 5 MB) en la política del POST. Los QR no se guardan: se dibujan desde `ticket.code` |
 
 ## 3. Diagrama
 
@@ -52,10 +53,11 @@ Los logos de los servicios AWS son los iconos de arquitectura oficiales. El arti
 | EC2 | `<instance-id>` (`ticketera-app`, `t3.micro`, AMI Amazon Linux 2023, volumen 20 GB gp3 cifrado, IMDSv2) |
 | Elastic IP | `<elastic-ip>` (`<allocation-id>`) |
 | RDS | `ticketera-db` (`<rds-endpoint>`), base `ticketera`, usuario `ticketera` |
-| CloudFront | `E3MHN7VMT0323S` (`d35ycaybluucd9.cloudfront.net`), origen = DNS público de la Elastic IP por HTTP :3000 |
+| CloudFront | `E3MHN7VMT0323S` (`d35ycaybluucd9.cloudfront.net`), origen = DNS público de la Elastic IP por HTTP :3000; origen `s3-covers` (bucket de portadas, OAC `ticketera-covers-oac`) |
+| S3 | `ticketera-covers-4de995` (us-east-2): Block Public Access, SSE-S3, CORS solo `POST` desde la URL de CloudFront y `http://localhost:3000` |
 | Security groups | `ticketera-app-sg` (`<app-sg-id>`), `ticketera-rds-sg` (`<rds-sg-id>`) |
 | ECR | `<account-id>.dkr.ecr.us-east-2.amazonaws.com/ticketera-app` |
-| IAM | rol `ticketera-ec2-role` + perfil `ticketera-ec2-profile`; usuario `ticketera-ci` |
+| IAM | rol `ticketera-ec2-role` + perfil `ticketera-ec2-profile`; usuario `ticketera-ci`; política administrada `ticketera-s3-covers` |
 | Logs | `/ticketera/app` |
 | Budgets | `ticketera-credito-100` (US$100 por trimestre, 50 % y 80 % reales, 100 % pronosticado) y `ticketera-mensual-33` |
 | Parameter Store | `/ticketera/*`: variables de la app, `db-password` y `DATABASE_URL` |
@@ -69,7 +71,8 @@ Todo lleva la etiqueta `project=ticketera`. Los identificadores concretos (cuent
 - **`ticketera-rds-sg`:** entrada TCP 5432 **solo** desde `ticketera-app-sg`.
 - **Rol de la instancia:** `AmazonSSMManagedInstanceCore` más políticas pequeñas por tema (`ticketera-ecr-pull`, `ticketera-logs`, `ticketera-params`, `ticketera-kms-decrypt`). IAM rechazaba la política combinada con un error de parseo que no se logró aislar, por eso están divididas. Para `ssm:GetParametersByPath` el recurso es la ruta `parameter/ticketera` además de `parameter/ticketera/*`.
 - **Usuario `ticketera-ci`:** solo puede subir a ese repositorio de ECR y ejecutar `ssm:SendCommand` sobre esa instancia con `AWS-RunShellScript`.
-- **CloudFront:** comportamiento por defecto sin caché, todos los métodos y política de origen `AllViewer`; `/_next/static/*` con caché optimizada; HTTP se redirige a HTTPS.
+- **CloudFront:** comportamiento por defecto sin caché, todos los métodos y política de origen `AllViewer`; `/_next/static/*` con caché optimizada; `/covers/*` al bucket de portadas (solo `GET`/`HEAD`, caché optimizada); HTTP se redirige a HTTPS.
+- **Bucket de portadas:** la política solo permite `s3:GetObject` en `covers/*` al servicio `cloudfront.amazonaws.com` con `AWS:SourceArn` = esta distribución; el acceso directo a S3 responde 403. La subida la firma la app con el rol de la instancia, que solo tiene `s3:PutObject` en `covers/*` (política `ticketera-s3-covers`, aparte de las demás por el error de parseo de arriba).
 
 ## 5. Costos
 
@@ -84,6 +87,7 @@ Aproximado, precios de lista on-demand en us-east-2 (confirmar con la calculador
 | Disco EC2 20 GB gp3 | 1,60 |
 | ECR | 0,10 |
 | CloudFront, Parameter Store, CloudWatch Logs (<5 GB) | 0,00 |
+| S3 de portadas (MB de imágenes; las lecturas pasan por la caché de CloudFront) | ≈ 0,00 |
 | **Total** | **≈ 26,92** |
 
 Con US$100 de crédito: **unos 3,7 meses encendido 24/7** (~US$0,9 al día). Si 1 GB de memoria resulta justo y hay que subir a `t3.small` (+US$7,6/mes), el margen de 3 meses casi desaparece.
@@ -129,6 +133,7 @@ El concurrency group `deploy-main` evita dos deploys a la vez.
 | `NEXT_PUBLIC_*` (Clerk, Stripe) | Parameter Store (String) y variables de GitHub | Los de GitHub se usan al construir la imagen |
 | `APP_URL`, `SUPER_ADMIN_EMAIL`, `STRIPE_CONNECT_ACCOUNT_COUNTRY`, `STRIPE_CONNECT_ACCOUNT_CURRENCY` | Parameter Store (String) | |
 | `GOOGLE_MAPS_API_KEY` | No se usa | Sin clave, la UI no muestra mapa |
+| `AWS_REGION`, `S3_COVERS_BUCKET`, `COVERS_BASE_URL` | Parameter Store (String) | Subida de portadas. `COVERS_BASE_URL` = `https://d35ycaybluucd9.cloudfront.net/covers`, también en local (el bucket no tiene otro origen público). En local además `AWS_PROFILE=ticketera`; en la EC2 el SDK usa el rol de la instancia (IMDSv2, hop limit 2, alcanza al contenedor) |
 
 Para cargar un secreto de webhook (no pasa por el chat):
 
@@ -151,6 +156,7 @@ URLs de los webhooks: `https://d35ycaybluucd9.cloudfront.net/api/webhooks/clerk`
 - **`drizzle.config.ts`:** `.env` opcional, porque en el contenedor de migración las variables vienen del entorno.
 - **`deploy/deploy.sh`** y **`.github/workflows/deploy.yml`** (ver §6).
 - **Dependencias:** se añadió `pg` y `@types/pg`; se quitó `@neondatabase/serverless`. Local sigue funcionando con Neon a través de `pg`.
+- **Portadas en S3:** `createCoverUploadAction` (`src/modules/event/actions.ts`, rol organizador) devuelve un POST prefirmado de `src/modules/event/services/cover-upload-service.ts` (clave `covers/<uuid>.<ext>`, JPG/PNG/WebP, ≤ 5 MB, vence en 5 min). `use-cover-upload.ts` sube el archivo directo a S3 y `CoverImageInput` guarda la URL de CloudFront en `cover_image_url`; pegar un enlace https sigue funcionando. Dependencias: `@aws-sdk/client-s3` y `@aws-sdk/s3-presigned-post`. No se borran las portadas reemplazadas ni las que se suben sin guardar el evento.
 
 ## 9. Limitaciones conocidas y riesgos aceptados
 

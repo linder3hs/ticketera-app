@@ -120,6 +120,13 @@ export interface EditableFields {
 
 export type EventActionResult<T = void> = { ok: true; data: T } | { ok: false; error: string };
 
+/** Presigned POST for a cover: post `fields` then the file to `url`; it is then served at `publicUrl`. */
+export interface CoverUpload {
+  url: string;
+  fields: Record<string, string>;
+  publicUrl: string;
+}
+
 /** What the actor may do with an event; the UI only hides, the server is the real gate. */
 export interface EventCapabilities {
   edit: boolean;

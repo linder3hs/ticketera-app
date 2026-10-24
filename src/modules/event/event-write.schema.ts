@@ -4,6 +4,13 @@ import { toLimaDate } from "@/modules/event/event-list.utils";
 import type { EventFormValues, EventIntent, EventWriteInput } from "@/modules/event/event-write.types";
 import { parsePriceToCents, toStartsAt } from "@/modules/event/event-write.utils";
 
+/** Image formats a cover upload accepts. */
+export const COVER_CONTENT_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
+/** Largest cover upload; S3 enforces it through the presigned POST policy. */
+export const COVER_MAX_BYTES = 5 * 1024 * 1024;
+
+export const coverUploadSchema = z.object({ contentType: z.enum(COVER_CONTENT_TYPES) });
+
 /** Largest value of a Postgres `integer` column (`price_cents`, `capacity`). */
 const MAX_INT = 2_147_483_647;
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
