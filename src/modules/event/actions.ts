@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+import type { AuditEntry } from "@/modules/audit/audit.types";
+import { recordAudit } from "@/modules/audit/services/audit-log-service";
 import { eventListQuerySchema } from "@/modules/event/event-list.schema";
 import type { EventsResult } from "@/modules/event/event-list.types";
 import { coverUploadSchema, createEventWriteSchema } from "@/modules/event/event-write.schema";
@@ -48,11 +50,13 @@ export async function listEventsAction(input: unknown): Promise<EventsResult> {
  * and the landing (every event change can alter it). The actor comes from the
  * session and the `organizer` row; the policy decision is the service's. The
  * callback also gets the signed-in `user.id` (never taken from the input).
- * Failures are logged and answered with a generic message.
+ * On success records `audit` (a function of the result's data when the id is
+ * new). Failures are logged and answered with a generic message.
  */
 async function run<T = void>(
   name: string,
   mutation: (actor: PolicyActor, userId: string) => Promise<EventActionResult<T>>,
+  audit: AuditEntry | ((data: T) => AuditEntry),
 ): Promise<EventActionResult<T>> {
   const user = await requireRole("organizer");
   try {
@@ -60,6 +64,7 @@ async function run<T = void>(
     if (result.ok) {
       revalidatePath("/organizer");
       revalidatePath("/");
+      await recordAudit(typeof audit === "function" ? audit(result.data) : audit);
     }
     return result;
   } catch (error) {
@@ -74,7 +79,16 @@ export async function createEventAction(input: unknown): Promise<EventActionResu
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? INVALID_MESSAGE };
   // Only admins' requests use it (`createEvent` ignores it for organizers).
   const { organizerId } = z.object({ organizerId: z.uuid().optional() }).catch({}).parse(input);
-  return run("createEventAction", (actor) => createEvent(actor, parsed.data, organizerId));
+  return run(
+    "createEventAction",
+    (actor) => createEvent(actor, parsed.data, organizerId),
+    (data) => ({
+      action: "event.create",
+      targetType: "event",
+      targetId: data.id,
+      metadata: organizerId ? { organizerId } : undefined,
+    }),
+  );
 }
 
 /** `input` is `{ id, ...form values }`. */
@@ -83,27 +97,45 @@ export async function updateEventAction(input: unknown): Promise<EventActionResu
   const values = draftSchema.safeParse(input);
   if (!id.success) return { ok: false, error: INVALID_MESSAGE };
   if (!values.success) return { ok: false, error: values.error.issues[0]?.message ?? INVALID_MESSAGE };
-  return run("updateEventAction", (actor) => updateEvent(actor, id.data.id, values.data));
+  return run("updateEventAction", (actor) => updateEvent(actor, id.data.id, values.data), {
+    action: "event.update",
+    targetType: "event",
+    targetId: id.data.id,
+  });
 }
 
 export async function deleteEventAction(input: unknown): Promise<EventActionResult> {
   const parsed = eventIdSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: INVALID_MESSAGE };
-  return run("deleteEventAction", (actor) => deleteEvent(actor, parsed.data.id));
+  return run("deleteEventAction", (actor) => deleteEvent(actor, parsed.data.id), {
+    action: "event.delete",
+    targetType: "event",
+    targetId: parsed.data.id,
+  });
 }
 
 /** Publish, unpublish or cancel. The single door for status changes. */
 export async function setEventStatusAction(input: unknown): Promise<EventActionResult> {
   const parsed = setStatusSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: INVALID_MESSAGE };
-  return run("setEventStatusAction", (actor, userId) => setEventStatus(actor, parsed.data.id, parsed.data.status, userId));
+  const { id, status } = parsed.data;
+  return run("setEventStatusAction", (actor, userId) => setEventStatus(actor, id, status, userId), {
+    action: "event.set_status",
+    targetType: "event",
+    targetId: id,
+    metadata: { status },
+  });
 }
 
 /** Re-sends the pending refunds of a cancelled event. Whether the actor may is the service's call. */
 export async function retryEventRefundsAction(input: unknown): Promise<EventActionResult<DispatchResult>> {
   const parsed = eventIdSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: INVALID_MESSAGE };
-  return run("retryEventRefundsAction", (actor, userId) => retryEventRefunds(actor, userId, parsed.data.id));
+  return run("retryEventRefundsAction", (actor, userId) => retryEventRefunds(actor, userId, parsed.data.id), {
+    action: "event.retry_refunds",
+    targetType: "event",
+    targetId: parsed.data.id,
+  });
 }
 
 /** Presigned upload for a new cover; the browser posts the file straight to S3. */
@@ -112,8 +144,12 @@ export async function createCoverUploadAction(input: unknown): Promise<EventActi
   const parsed = coverUploadSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "Usa una imagen JPG, PNG o WebP." };
 
+  const { contentType } = parsed.data;
   try {
-    return { ok: true, data: await createCoverUpload(parsed.data.contentType) };
+    const data = await createCoverUpload(contentType);
+    // Never the presigned URL: only what was asked for.
+    await recordAudit({ action: "event.create_cover_upload", metadata: { contentType } });
+    return { ok: true, data };
   } catch (error) {
     console.error("createCoverUploadAction", error);
     return { ok: false, error: "No pudimos preparar la subida. Intenta de nuevo." };
@@ -124,5 +160,11 @@ export async function createCoverUploadAction(input: unknown): Promise<EventActi
 export async function setEventFeaturedAction(input: unknown): Promise<EventActionResult> {
   const parsed = setFeaturedSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: INVALID_MESSAGE };
-  return run("setEventFeaturedAction", (actor) => setEventFeatured(actor, parsed.data.id, parsed.data.featured));
+  const { id, featured } = parsed.data;
+  return run("setEventFeaturedAction", (actor) => setEventFeatured(actor, id, featured), {
+    action: "event.set_featured",
+    targetType: "event",
+    targetId: id,
+    metadata: { featured },
+  });
 }

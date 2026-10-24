@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   changeRoleSchema,
   deleteUserSchema,
+  impersonateUserSchema,
   inviteStaffSchema,
   parseUsersQuery,
   updateUserSchema,
@@ -50,6 +51,15 @@ describe("deleteUserSchema", () => {
   it("requires a uuid", () => {
     expect(deleteUserSchema.safeParse({ userId: "nope" }).success).toBe(false);
     expect(deleteUserSchema.safeParse({ userId: "0b0e4c1e-6c54-4f0e-9d0e-3a9f4b1c2d3e" }).success).toBe(true);
+  });
+});
+
+describe("impersonateUserSchema", () => {
+  it("accepts a uuid and rejects anything else", () => {
+    const userId = "0b0e4c1e-6c54-4f0e-9d0e-3a9f4b1c2d3e";
+    expect(impersonateUserSchema.parse({ userId })).toEqual({ userId });
+    expect(impersonateUserSchema.safeParse({ userId: "nope" }).success).toBe(false);
+    expect(impersonateUserSchema.safeParse({}).success).toBe(false);
   });
 });
 

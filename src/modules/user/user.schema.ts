@@ -23,6 +23,8 @@ export const updateUserSchema = z.object({
 
 export const deleteUserSchema = z.object({ userId: z.uuid() });
 
+export const impersonateUserSchema = z.object({ userId: z.uuid() });
+
 export const USERS_PAGE_SIZES = [8, 16, 24] as const;
 
 /** Anything invalid in the URL falls back to its default instead of failing the page. */

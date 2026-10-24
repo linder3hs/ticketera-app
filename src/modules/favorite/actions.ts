@@ -1,6 +1,7 @@
 "use server";
 
 import { pgErrorCode } from "@/lib/pg-error";
+import { recordAudit } from "@/modules/audit/services/audit-log-service";
 import { setFavoriteSchema } from "@/modules/favorite/favorite.schema";
 import type { FavoriteActionResult } from "@/modules/favorite/favorite.types";
 import { setEventFavorite } from "@/modules/favorite/services/favorite-service";
@@ -25,8 +26,10 @@ export async function setEventFavoriteAction(input: unknown): Promise<FavoriteAc
   const parsed = setFavoriteSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: FAVORITE_MESSAGES.invalid };
 
+  const { eventId, favorite } = parsed.data;
   try {
-    await setEventFavorite(user.id, parsed.data.eventId, parsed.data.favorite);
+    await setEventFavorite(user.id, eventId, favorite);
+    await recordAudit({ action: "favorite.set", targetType: "event", targetId: eventId, metadata: { favorite } });
     return { ok: true };
   } catch (error) {
     const code = pgErrorCode(error);

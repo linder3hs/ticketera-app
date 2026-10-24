@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { changeOrganizerStatusAction } from "@/modules/user/actions";
 import { DeleteUserDialog } from "@/modules/user/components/DeleteUserDialog";
 import { EditUserDialog } from "@/modules/user/components/EditUserDialog";
+import { ImpersonateUserDialog } from "@/modules/user/components/ImpersonateUserDialog";
 import { InviteStaffDialog } from "@/modules/user/components/InviteStaffDialog";
 import { UsersFilters } from "@/modules/user/components/UsersFilters";
 import { UsersPagination } from "@/modules/user/components/UsersPagination";
@@ -21,11 +22,12 @@ interface UsersAdminProps {
   page: UsersPage;
 }
 
-/** Users management: filters, table, pagination and the invite / edit / delete dialogs. */
+/** Users management: filters, table, pagination and the invite / edit / delete / impersonate dialogs. */
 export function UsersAdmin({ actor, query, page }: UsersAdminProps) {
   const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [editing, setEditing] = useState<UserRow | null>(null);
   const [deleting, setDeleting] = useState<UserRow | null>(null);
+  const [impersonating, setImpersonating] = useState<UserRow | null>(null);
   const [notice, setNotice] = useState<ActionResult | null>(null);
   const [isPending, startTransition] = useTransition();
   const { clear } = useUsersQuery(query);
@@ -96,6 +98,7 @@ export function UsersAdmin({ actor, query, page }: UsersAdminProps) {
           onEdit={setEditing}
           onDelete={setDeleting}
           onToggleStatus={toggleStatus}
+          onImpersonate={setImpersonating}
           onClearFilters={clear}
         />
         <UsersPagination query={query} total={page.total} page={page.page} pageCount={page.pageCount} />
@@ -106,6 +109,7 @@ export function UsersAdmin({ actor, query, page }: UsersAdminProps) {
       )}
       <EditUserDialog user={editing} actor={actor} onClose={() => setEditing(null)} onSuccess={setNotice} />
       <DeleteUserDialog user={deleting} onClose={() => setDeleting(null)} onSuccess={setNotice} />
+      <ImpersonateUserDialog user={impersonating} onClose={() => setImpersonating(null)} />
     </div>
   );
 }

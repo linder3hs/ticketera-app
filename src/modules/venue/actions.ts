@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+import type { AuditEntry } from "@/modules/audit/audit.types";
+import { recordAudit } from "@/modules/audit/services/audit-log-service";
 import { requireRole } from "@/modules/user/current-user";
 import {
   createVenue,
@@ -30,12 +32,14 @@ const firstMessage = (error: z.ZodError) => error.issues[0]?.message ?? INVALID_
  * Runs a mutation as the signed-in organizer (or admin). The actor comes from
  * the session; the policy decision is the service's. On success refreshes the
  * venue list, the landing and the public event pages (name, color, shape and
- * seats of a zone are shown there). Failures are logged and answered with a
+ * seats of a zone are shown there) and records `audit` (a function of the
+ * result's data when the id is new). Failures are logged and answered with a
  * generic message.
  */
 async function run<T = void>(
   name: string,
   mutation: (actor: VenueActor) => Promise<VenueActionResult<T>>,
+  audit: AuditEntry | ((data: T) => AuditEntry),
 ): Promise<VenueActionResult<T>> {
   const user = await requireRole("organizer");
   try {
@@ -44,6 +48,7 @@ async function run<T = void>(
       revalidatePath("/organizer/venues");
       revalidatePath("/");
       revalidatePath("/events", "layout");
+      await recordAudit(typeof audit === "function" ? audit(result.data) : audit);
     }
     return result;
   } catch (error) {
@@ -56,7 +61,11 @@ async function run<T = void>(
 export async function createVenueAction(input: unknown): Promise<VenueActionResult<{ id: string }>> {
   const values = venueSchema.safeParse(input);
   if (!values.success) return { ok: false, error: firstMessage(values.error) };
-  return run("createVenueAction", (actor) => createVenue(actor, values.data));
+  return run(
+    "createVenueAction",
+    (actor) => createVenue(actor, values.data),
+    (data) => ({ action: "venue.create", targetType: "venue", targetId: data.id }),
+  );
 }
 
 /** `input` is `{ id, ...venue form values }`. */
@@ -65,13 +74,21 @@ export async function updateVenueAction(input: unknown): Promise<VenueActionResu
   const values = venueSchema.safeParse(input);
   if (!id.success) return { ok: false, error: INVALID_MESSAGE };
   if (!values.success) return { ok: false, error: firstMessage(values.error) };
-  return run("updateVenueAction", (actor) => updateVenue(actor, id.data.id, values.data));
+  return run("updateVenueAction", (actor) => updateVenue(actor, id.data.id, values.data), {
+    action: "venue.update",
+    targetType: "venue",
+    targetId: id.data.id,
+  });
 }
 
 export async function deleteVenueAction(input: unknown): Promise<VenueActionResult> {
   const parsed = entityIdSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: INVALID_MESSAGE };
-  return run("deleteVenueAction", (actor) => deleteVenue(actor, parsed.data.id));
+  return run("deleteVenueAction", (actor) => deleteVenue(actor, parsed.data.id), {
+    action: "venue.delete",
+    targetType: "venue",
+    targetId: parsed.data.id,
+  });
 }
 
 /** `input` is `{ venueId, ...zone form values }`. */
@@ -80,7 +97,12 @@ export async function createZoneAction(input: unknown): Promise<VenueActionResul
   const zone = zoneSchema.safeParse(input);
   if (!parent.success) return { ok: false, error: INVALID_MESSAGE };
   if (!zone.success) return { ok: false, error: firstMessage(zone.error) };
-  return run("createZoneAction", (actor) => createZone(actor, parent.data.venueId, zone.data));
+  const { venueId } = parent.data;
+  return run(
+    "createZoneAction",
+    (actor) => createZone(actor, venueId, zone.data),
+    (data) => ({ action: "venue.create_zone", targetType: "venue_zone", targetId: data.id, metadata: { venueId } }),
+  );
 }
 
 /** `input` is `{ id, ...zone form values }`. A missing shape keeps the stored one. */
@@ -89,13 +111,21 @@ export async function updateZoneAction(input: unknown): Promise<VenueActionResul
   const zone = zoneSchema.safeParse(input);
   if (!id.success) return { ok: false, error: INVALID_MESSAGE };
   if (!zone.success) return { ok: false, error: firstMessage(zone.error) };
-  return run("updateZoneAction", (actor) => updateZone(actor, id.data.id, zone.data));
+  return run("updateZoneAction", (actor) => updateZone(actor, id.data.id, zone.data), {
+    action: "venue.update_zone",
+    targetType: "venue_zone",
+    targetId: id.data.id,
+  });
 }
 
 export async function deleteZoneAction(input: unknown): Promise<VenueActionResult> {
   const parsed = entityIdSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: INVALID_MESSAGE };
-  return run("deleteZoneAction", (actor) => deleteZone(actor, parsed.data.id));
+  return run("deleteZoneAction", (actor) => deleteZone(actor, parsed.data.id), {
+    action: "venue.delete_zone",
+    targetType: "venue_zone",
+    targetId: parsed.data.id,
+  });
 }
 
 /** `input` is `{ zoneId, ...seat generator form values }`. Replaces the zone's seats. */
@@ -104,5 +134,15 @@ export async function generateSeatsAction(input: unknown): Promise<VenueActionRe
   const generator = seatGeneratorSchema.safeParse(input);
   if (!target.success) return { ok: false, error: INVALID_MESSAGE };
   if (!generator.success) return { ok: false, error: firstMessage(generator.error) };
-  return run("generateSeatsAction", (actor) => generateSeats(actor, target.data.zoneId, generator.data));
+  const { zoneId } = target.data;
+  return run(
+    "generateSeatsAction",
+    (actor) => generateSeats(actor, zoneId, generator.data),
+    (data) => ({
+      action: "venue.generate_seats",
+      targetType: "venue_zone",
+      targetId: zoneId,
+      metadata: { count: data.count },
+    }),
+  );
 }

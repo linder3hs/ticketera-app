@@ -1,6 +1,7 @@
 "use server";
 
 import { pgErrorCode } from "@/lib/pg-error";
+import { recordAudit } from "@/modules/audit/services/audit-log-service";
 import { startCheckoutSchema } from "@/modules/booking/buyer.schema";
 import type { StartCheckoutResult } from "@/modules/booking/checkout.types";
 import { CHECKOUT_MESSAGES } from "@/modules/booking/checkout.utils";
@@ -31,7 +32,16 @@ export async function reserveTicketsAction(input: unknown): Promise<ReserveTicke
   try {
     const event = await getPublicEventDetail(slug);
     if (!event) return { ok: false, error: RESERVATION_MESSAGES.eventUnavailable };
-    return await reserveTickets(user.id, event.id, { seats, generalAdmission });
+    const result = await reserveTickets(user.id, event.id, { seats, generalAdmission });
+    if (result.ok) {
+      await recordAudit({
+        action: "booking.reserve",
+        targetType: "reservation",
+        targetId: result.data.reservationId,
+        metadata: { slug },
+      });
+    }
+    return result;
   } catch (error) {
     console.error("reserveTicketsAction", error);
     return { ok: false, error: RESERVATION_MESSAGES.generic };
@@ -67,12 +77,22 @@ export async function startCheckoutAction(input: unknown): Promise<StartCheckout
   try {
     const event = await getPublicEventDetail(slug);
     if (!event) return { ok: false, error: CHECKOUT_MESSAGES.eventUnavailable };
-    return await startCheckout({
+    const result = await startCheckout({
       userId: user.id,
       eventId: event.id,
       currency: event.currency,
       buyer: { fullName, email, documentType, documentNumber, phone },
     });
+    // Never the `payment` (it carries the client secret) nor the buyer's data.
+    if (result.ok) {
+      await recordAudit({
+        action: "booking.start_checkout",
+        targetType: "order",
+        targetId: result.data.orderCode,
+        metadata: { slug },
+      });
+    }
+    return result;
   } catch (error) {
     console.error("startCheckoutAction", toLoggableError(error));
     return { ok: false, error: CHECKOUT_MESSAGES.generic };

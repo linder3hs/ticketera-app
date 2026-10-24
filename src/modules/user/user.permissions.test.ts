@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { can, canAssignRole, canManageUser, hasRole } from "@/modules/user/user.permissions";
+import { can, canAssignRole, canImpersonate, canManageUser, hasRole } from "@/modules/user/user.permissions";
 
 describe("hasRole", () => {
   it("follows the hierarchy super_admin > admin > organizer > customer", () => {
@@ -88,5 +88,34 @@ describe("canManageUser", () => {
   it("denies organizers and customers", () => {
     expect(canManageUser(user("o", "organizer"), user("c", "customer"))).toBe(false);
     expect(canManageUser(user("c", "customer"), user("o", "organizer"))).toBe(false);
+  });
+});
+
+describe("canImpersonate", () => {
+  const user = (id: string, role: "super_admin" | "admin" | "organizer" | "customer", deletedAt?: Date | null) => ({
+    id,
+    role,
+    deletedAt,
+  });
+  const superAdmin = user("s", "super_admin");
+
+  it("lets the super admin act as organizers and customers", () => {
+    expect(canImpersonate(superAdmin, user("o", "organizer"))).toBe(true);
+    expect(canImpersonate(superAdmin, user("c", "customer"))).toBe(true);
+    expect(canImpersonate(superAdmin, user("c", "customer", null))).toBe(true);
+  });
+
+  it("never targets admins, the super admin, oneself or deleted users", () => {
+    expect(canImpersonate(superAdmin, user("a", "admin"))).toBe(false);
+    expect(canImpersonate(superAdmin, user("t", "super_admin"))).toBe(false);
+    expect(canImpersonate(superAdmin, superAdmin)).toBe(false);
+    expect(canImpersonate(superAdmin, user("o", "organizer", new Date()))).toBe(false);
+  });
+
+  it("denies every other actor role", () => {
+    for (const role of ["admin", "organizer", "customer"] as const) {
+      expect(canImpersonate(user("x", role), user("o", "organizer"))).toBe(false);
+      expect(canImpersonate(user("x", role), user("c", "customer"))).toBe(false);
+    }
   });
 });

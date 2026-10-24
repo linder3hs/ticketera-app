@@ -1,5 +1,6 @@
 "use server";
 
+import { recordAudit } from "@/modules/audit/services/audit-log-service";
 import { checkInInputSchema } from "@/modules/check-in/check-in.schema";
 import type { CheckInActionResult } from "@/modules/check-in/check-in.types";
 import { checkInTicket } from "@/modules/check-in/services/check-in-service";
@@ -16,7 +17,17 @@ export async function checkInTicketAction(input: unknown): Promise<CheckInAction
   if (!parsed.success) return { ok: false, error: "Datos inválidos." };
 
   try {
-    return await checkInTicket(user, parsed.data);
+    const result = await checkInTicket(user, parsed.data);
+    // Never the scanned code: it is the ticket itself.
+    if (result.ok) {
+      await recordAudit({
+        action: "check_in.scan",
+        targetType: "event",
+        targetId: parsed.data.eventId,
+        metadata: { result: result.data.result },
+      });
+    }
+    return result;
   } catch (error) {
     console.error("checkInTicketAction", error);
     return { ok: false, error: "No pudimos validar la entrada. Intenta de nuevo." };

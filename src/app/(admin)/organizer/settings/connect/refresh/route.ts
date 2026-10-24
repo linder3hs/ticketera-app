@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 
+import { recordAudit } from "@/modules/audit/services/audit-log-service";
 import { startConnectOnboarding } from "@/modules/payment/services/connect-service";
 import { requireRole } from "@/modules/user/current-user";
 
@@ -13,5 +14,9 @@ const SETTINGS_PATH = "/organizer/settings";
 export async function GET() {
   const user = await requireRole("organizer");
   const result = await startConnectOnboarding(user);
-  redirect(result.ok ? result.url : SETTINGS_PATH);
+  if (!result.ok) redirect(SETTINGS_PATH);
+
+  // Never the onboarding `url`: it grants access to the account's hosted pages.
+  await recordAudit({ action: "payment.refresh_connect_onboarding" });
+  redirect(result.url);
 }
