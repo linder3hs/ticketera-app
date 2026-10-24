@@ -21,8 +21,10 @@ import { can } from "@/modules/user/user.permissions";
  *
  * Roles: `customer` nothing; `organizer` only events of their own `organizer`
  * row; `admin`/`super_admin` (`event:moderate`) any event; they create on behalf
- * of an organizer (`createEvent` takes the owner) but never publish, and only
- * they feature events on the landing.
+ * of an organizer (`createEvent` takes the owner) and only they feature events
+ * on the landing. Of them only the `super_admin` (`event:publish-any`) publishes,
+ * skipping the organizer checks (approval, Connect): checkout still refuses to
+ * charge while the owner's Connect is incomplete.
  */
 
 export const PUBLISH_BLOCKER_MESSAGES: Record<PublishBlocker, string> = {
@@ -41,6 +43,8 @@ export const ZONE_CHANGE_MESSAGES: Record<ZoneChangeErrorCode, string> = {
 };
 
 const isModerator = (actor: PolicyActor) => can(actor.role, "event:moderate");
+
+export const publishesAny = (actor: PolicyActor) => can(actor.role, "event:publish-any");
 
 const isOwner = (actor: PolicyActor, event: PolicyEvent) =>
   actor.role === "organizer" && actor.organizerId !== null && actor.organizerId === event.organizerId;
@@ -73,16 +77,27 @@ export function canOrganizerPublish(actor: PolicyActor): boolean {
   return actor.organizerStatus === "approved" && actor.stripeOnboardingStatus === "complete";
 }
 
-/** The organizer slice `getPublishBlockers` checks, taken from the actor. */
-export const toPublishOrganizer = (actor: PolicyActor): PublishOrganizer => ({
-  status: actor.organizerStatus,
-  stripeOnboardingStatus: actor.stripeOnboardingStatus,
-});
+/** Whether the form offers "Publicar" to the actor, before the event's own checks. */
+export function canActorPublish(actor: PolicyActor): boolean {
+  return publishesAny(actor) || (actor.role === "organizer" && canOrganizerPublish(actor));
+}
 
-/** Only the approved owner with Connect complete publishes, and only a draft that has nothing left to fix. */
+/**
+ * The organizer slice `getPublishBlockers` checks, taken from the actor;
+ * `undefined` (event checks only) for the super admin.
+ */
+export const toPublishOrganizer = (actor: PolicyActor): PublishOrganizer | undefined =>
+  publishesAny(actor)
+    ? undefined
+    : { status: actor.organizerStatus, stripeOnboardingStatus: actor.stripeOnboardingStatus };
+
+/**
+ * The approved owner with Connect complete, or the super admin, publishes; only
+ * a draft that has nothing left to fix.
+ */
 export function canPublishEvent(actor: PolicyActor, event: PolicyEvent, zones: PublishZone[], now: Date): boolean {
   return (
-    isOwner(actor, event) &&
+    (publishesAny(actor) || isOwner(actor, event)) &&
     event.status === "draft" &&
     !isEventReadOnly(event, now) &&
     getPublishBlockers({ startsAt: event.startsAt, zones, organizer: toPublishOrganizer(actor) }, now).length === 0

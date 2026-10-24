@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   PUBLISH_BLOCKER_MESSAGES,
+  canActorPublish,
   canCancelEvent,
   canCreateEvent,
   canDeleteEvent,
@@ -163,11 +164,18 @@ describe("canPublishEvent", () => {
     ["another organizer", foreign, false],
     ["organizer without profile", noProfile, false],
     ["admin", admin, false],
-    ["super_admin", superAdmin, false],
+    ["super_admin", superAdmin, true],
     ["admin with a stale organizer row", adminWithStaleProfile, false],
     ["customer", customer, false],
   ])("%s on a ready draft -> %s", (_label, actor, expected) => {
     expect(canPublishEvent(actor, draft, [GA], NOW)).toBe(expected);
+  });
+
+  it("lets the super admin skip the organizer checks but not the event's own", () => {
+    expect(canPublishEvent(superAdmin, event({ status: "draft", organizerId: OTHER }), [GA], NOW)).toBe(true);
+    expect(canPublishEvent(superAdmin, draft, [], NOW)).toBe(false);
+    expect(canPublishEvent(superAdmin, event({ status: "draft", startsAt: PAST }), [GA], NOW)).toBe(false);
+    expect(canPublishEvent(superAdmin, event({ status: "published" }), [GA], NOW)).toBe(false);
   });
 
   it.each(["published", "cancelled", "finished"] as const)("a %s event cannot be published", (status) => {
@@ -198,6 +206,20 @@ describe("canOrganizerPublish", () => {
     ["customer", customer, false],
   ])("%s -> %s", (_label, actor, expected) => {
     expect(canOrganizerPublish(actor)).toBe(expected);
+  });
+});
+
+describe("canActorPublish", () => {
+  it.each([
+    ["approved organizer with Connect complete", approved, true],
+    ["approved organizer with Connect pending", connectPending, false],
+    ["pending organizer", pending, false],
+    ["admin", admin, false],
+    ["admin with a stale organizer row", adminWithStaleProfile, false],
+    ["super_admin", superAdmin, true],
+    ["customer", customer, false],
+  ])("%s -> %s", (_label, actor, expected) => {
+    expect(canActorPublish(actor)).toBe(expected);
   });
 });
 

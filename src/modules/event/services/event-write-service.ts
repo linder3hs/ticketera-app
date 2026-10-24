@@ -31,6 +31,7 @@ import {
   editableFields,
   getPublishBlockers,
   isEventReadOnly,
+  publishesAny,
   toPublishOrganizer,
 } from "@/modules/event/event.policy";
 import {
@@ -473,8 +474,10 @@ function statusDenial(
 ): string | null {
   if (status === "published") {
     if (canPublishEvent(actor, stored, zones, now)) return null;
-    if (actor.role !== "organizer" || actor.organizerId !== stored.organizerId) return MESSAGES.onlyOwnerPublishes;
-    if (actor.organizerStatus !== "approved") return MESSAGES.notApproved;
+    if (!publishesAny(actor)) {
+      if (actor.role !== "organizer" || actor.organizerId !== stored.organizerId) return MESSAGES.onlyOwnerPublishes;
+      if (actor.organizerStatus !== "approved") return MESSAGES.notApproved;
+    }
     if (stored.status !== "draft") return MESSAGES.onlyDraftPublishes;
     if (isEventReadOnly(stored, now)) return MESSAGES.readOnly;
     const [blocker] = getPublishBlockers(
@@ -530,7 +533,11 @@ export async function setEventStatus(
           gt(event.startsAt, now),
           ownerGuard(actor),
           status === "published"
-            ? sql`exists (select 1 from ${eventZone} where ${eventZone.eventId} = ${event.id} and ${eventZone.priceCents} > 0) and exists (select 1 from ${organizer} where ${organizer.id} = ${event.organizerId} and ${organizer.status} = 'approved' and ${organizer.stripeOnboardingStatus} = 'complete')`
+            ? sql`exists (select 1 from ${eventZone} where ${eventZone.eventId} = ${event.id} and ${eventZone.priceCents} > 0)`
+            : undefined,
+          // The super admin publishes without the organizer checks (see `event.policy`).
+          status === "published" && !publishesAny(actor)
+            ? sql`exists (select 1 from ${organizer} where ${organizer.id} = ${event.organizerId} and ${organizer.status} = 'approved' and ${organizer.stripeOnboardingStatus} = 'complete')`
             : undefined,
           unpublishWithoutSales ? sql`not ${eventHasSales(event.id)}` : undefined,
         ),

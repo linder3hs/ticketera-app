@@ -19,6 +19,7 @@ const PERMISSION_MIN_ROLE = {
   "refund:manage": "admin",
   "report:view-global": "admin",
   "user:manage-admins": "super_admin",
+  "event:publish-any": "super_admin",
   "platform:settings": "super_admin",
 } as const satisfies Record<string, Role>;
 

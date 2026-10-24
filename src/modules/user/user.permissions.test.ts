@@ -15,6 +15,8 @@ describe("can", () => {
   it("restricts platform settings and admin management to super_admin", () => {
     expect(can("super_admin", "platform:settings")).toBe(true);
     expect(can("admin", "platform:settings")).toBe(false);
+    expect(can("super_admin", "event:publish-any")).toBe(true);
+    expect(can("admin", "event:publish-any")).toBe(false);
     expect(can("admin", "user:manage-admins")).toBe(false);
   });
 

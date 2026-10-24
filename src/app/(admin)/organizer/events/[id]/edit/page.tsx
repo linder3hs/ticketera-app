@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 
-import { canOrganizerPublish } from "@/modules/event/event.policy";
+import { canActorPublish } from "@/modules/event/event.policy";
 import { resolvePolicyActor } from "@/modules/event/services/event-list-service";
 import { getEventForEdit, listEventFormOptions } from "@/modules/event/services/event-form-service";
 import { EventForm } from "@/modules/organizer/components/EventForm";
@@ -18,6 +18,6 @@ export default async function EditEventPage({ params }: PageProps<"/organizer/ev
   const [options, event] = await Promise.all([listEventFormOptions(), getEventForEdit(actor, id)]);
   if (!event) notFound();
 
-  // Only an approved organizer with payments set up publishes (the admin moderates but does not publish).
-  return <EventForm options={options} event={event} canPublish={actor.role === "organizer" && canOrganizerPublish(actor)} />;
+  // An approved organizer with payments set up, or the super admin, publishes (the admin moderates but does not publish).
+  return <EventForm options={options} event={event} canPublish={canActorPublish(actor)} />;
 }
