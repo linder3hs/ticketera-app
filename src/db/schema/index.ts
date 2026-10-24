@@ -1,3 +1,4 @@
+export * from "./audit";
 export * from "./enums";
 export * from "./event";
 export * from "./favorite";

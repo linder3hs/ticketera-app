@@ -53,6 +53,23 @@ export function canManageUser(actor: { id: string; role: Role }, target: { id: s
   return actor.id !== target.id && canAssignRole(actor.role, target.role, "customer");
 }
 
+/**
+ * Whether `actor` may act as `target` (impersonation): only the super admin, only
+ * over organizers and customers that aren't soft-deleted, never themselves.
+ * `canManageUser` doesn't fit: it lets the super admin act on admins.
+ */
+export function canImpersonate(
+  actor: { id: string; role: Role },
+  target: { id: string; role: Role; deletedAt?: Date | null },
+): boolean {
+  return (
+    actor.role === "super_admin" &&
+    actor.id !== target.id &&
+    (target.role === "organizer" || target.role === "customer") &&
+    !target.deletedAt
+  );
+}
+
 export function isRole(value: unknown): value is Role {
   return typeof value === "string" && (ROLES as readonly string[]).includes(value);
 }

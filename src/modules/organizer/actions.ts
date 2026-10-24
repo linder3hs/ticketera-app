@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
+import { recordAudit } from "@/modules/audit/services/audit-log-service";
 import { organizerProfileSchema } from "@/modules/organizer/organizer.schema";
 import { requireRole } from "@/modules/user/current-user";
 import { updateOrganizerProfile } from "@/modules/user/services/user-service";
@@ -21,5 +22,7 @@ export async function updateOrganizerProfileAction(input: unknown): Promise<Acti
   if (!(await updateOrganizerProfile(user.id, parsed.data))) return NO_PROFILE;
 
   revalidatePath("/organizer/settings");
+  const { businessName, taxId } = parsed.data;
+  await recordAudit({ action: "organizer.update_profile", metadata: { businessName, taxId } });
   return { ok: true, message: "Perfil actualizado." };
 }

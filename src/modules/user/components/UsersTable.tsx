@@ -1,13 +1,13 @@
 "use client";
 
-import { Ban, CircleCheck, Lock, Pencil, Trash2 } from "lucide-react";
+import { Ban, CircleCheck, Lock, Pencil, Trash2, VenetianMask } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { ORGANIZER_STATUS_LABEL, ROLE_LABEL } from "@/modules/user/components/role-labels";
-import { canManageUser } from "@/modules/user/user.permissions";
+import { canImpersonate, canManageUser } from "@/modules/user/user.permissions";
 import type { OrganizerStatus, Role, UserRow } from "@/modules/user/user.types";
 
 const ROLE_BADGE: Record<Role, string> = {
@@ -38,6 +38,7 @@ interface UsersTableProps {
   onEdit: (row: UserRow) => void;
   onDelete: (row: UserRow) => void;
   onToggleStatus: (row: UserRow) => void;
+  onImpersonate: (row: UserRow) => void;
   onClearFilters: () => void;
   disabled?: boolean;
 }
@@ -92,7 +93,7 @@ function UserIdentity({ row, isSelf }: { row: UserRow; isSelf: boolean }) {
   );
 }
 
-/** Edit / delete (and approve or suspend for organizers), or a lock with the reason. */
+/** Impersonate (super admin only) / edit / delete (and approve or suspend for organizers), or a lock with the reason. */
 function RowActions({
   row,
   actor,
@@ -100,7 +101,11 @@ function RowActions({
   onEdit,
   onDelete,
   onToggleStatus,
-}: Pick<UsersTableProps, "onEdit" | "onDelete" | "onToggleStatus" | "disabled"> & { row: UserRow; actor: Actor }) {
+  onImpersonate,
+}: Pick<UsersTableProps, "onEdit" | "onDelete" | "onToggleStatus" | "onImpersonate" | "disabled"> & {
+  row: UserRow;
+  actor: Actor;
+}) {
   const reason = lockReason(actor, row);
   if (reason) {
     return (
@@ -116,6 +121,19 @@ function RowActions({
 
   return (
     <>
+      {canImpersonate(actor, row) && (
+        <Button
+          type="button"
+          variant="ghost"
+          disabled={disabled}
+          aria-label={`Impersonar a ${name}`}
+          title="Impersonar"
+          onClick={() => onImpersonate(row)}
+          className={ICON_BUTTON_CLASS}
+        >
+          <VenetianMask className="size-5" aria-hidden="true" />
+        </Button>
+      )}
       {row.role === "organizer" && row.organizerStatus && (
         <Button
           type="button"

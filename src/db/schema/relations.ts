@@ -1,4 +1,5 @@
 import { relations } from "drizzle-orm";
+import { auditLog } from "./audit";
 import { category, event, eventSeat, eventZone } from "./event";
 import { organizer, platformSetting, user } from "./identity";
 import { orderItem, orders, payment } from "./order";
@@ -168,5 +169,18 @@ export const refundTicketRelations = relations(refundTicket, ({ one }) => ({
   ticket: one(ticket, {
     fields: [refundTicket.ticketId],
     references: [ticket.id],
+  }),
+}));
+
+export const auditLogRelations = relations(auditLog, ({ one }) => ({
+  actor: one(user, {
+    fields: [auditLog.actorUserId],
+    references: [user.id],
+    relationName: "audit_actor",
+  }),
+  onBehalfOf: one(user, {
+    fields: [auditLog.onBehalfOfUserId],
+    references: [user.id],
+    relationName: "audit_on_behalf_of",
   }),
 }));
