@@ -36,6 +36,16 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run lint
+      # Offline (no DATABASE_URL): fails if src/db/schema changed without its committed migration.
+      - name: Migrations in sync with the schema
+        run: |
+          npx drizzle-kit check
+          npx drizzle-kit generate
+          if [ -n "$(git status --porcelain drizzle/)" ]; then
+            echo "::error::src/db/schema changed without its migration. Run npm run db:generate and commit drizzle/."
+            git status --porcelain drizzle/
+            exit 1
+          fi
       - run: npx vitest run
 
   deploy:
