@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { notifyConnectStatus } from "@/modules/email/services/notification-service";
 import type { ConnectGateway } from "@/modules/payment/payment.types";
 import {
   refreshConnectStatus,
@@ -8,15 +9,18 @@ import {
 } from "@/modules/payment/services/connect-service";
 import {
   findOrganizerByUserId,
+  findStripeAccountOwner,
   setStripeAccountId,
   setStripeOnboardingStatus,
 } from "@/modules/user/services/user-service";
 
 vi.mock("@/modules/user/services/user-service", () => ({
   findOrganizerByUserId: vi.fn(),
+  findStripeAccountOwner: vi.fn(),
   setStripeAccountId: vi.fn(),
   setStripeOnboardingStatus: vi.fn(),
 }));
+vi.mock("@/modules/email/services/notification-service", () => ({ notifyConnectStatus: vi.fn() }));
 // The real gateway pulls in the Stripe SDK; tests inject a fake instead.
 vi.mock("@/modules/payment/services/stripe-connect-gateway", () => ({ stripeConnectGateway: {} }));
 
@@ -167,6 +171,46 @@ describe("syncConnectStatus", () => {
     vi.mocked(setStripeOnboardingStatus).mockResolvedValue(false);
 
     expect(await syncConnectStatus("acct_x", gateway)).toBeNull();
+    expect(notifyConnectStatus).not.toHaveBeenCalled();
+  });
+
+  const owner = (stripeOnboardingStatus: "not_started" | "pending" | "complete") => ({
+    email: "org@example.com",
+    fullName: "Org",
+    stripeOnboardingStatus,
+  });
+
+  it("emails the organizer when payouts turn on", async () => {
+    gateway.getTransfersStatus.mockResolvedValue("active");
+    vi.mocked(findStripeAccountOwner).mockResolvedValue(owner("pending"));
+    vi.mocked(setStripeOnboardingStatus).mockResolvedValue(true);
+
+    await syncConnectStatus("acct_1", gateway);
+
+    expect(notifyConnectStatus).toHaveBeenCalledWith("acct_1", owner("pending"), "complete");
+  });
+
+  it("emails when a complete account goes back to pending", async () => {
+    gateway.getTransfersStatus.mockResolvedValue("restricted");
+    vi.mocked(findStripeAccountOwner).mockResolvedValue(owner("complete"));
+    vi.mocked(setStripeOnboardingStatus).mockResolvedValue(true);
+
+    await syncConnectStatus("acct_1", gateway);
+
+    expect(notifyConnectStatus).toHaveBeenCalledWith("acct_1", owner("complete"), "pending");
+  });
+
+  it("does not email an unchanged status or the first pending of the onboarding", async () => {
+    gateway.getTransfersStatus.mockResolvedValue("active");
+    vi.mocked(findStripeAccountOwner).mockResolvedValue(owner("complete"));
+    vi.mocked(setStripeOnboardingStatus).mockResolvedValue(true);
+    await syncConnectStatus("acct_1", gateway);
+
+    gateway.getTransfersStatus.mockResolvedValue("restricted");
+    vi.mocked(findStripeAccountOwner).mockResolvedValue(owner("not_started"));
+    await syncConnectStatus("acct_1", gateway);
+
+    expect(notifyConnectStatus).not.toHaveBeenCalled();
   });
 });
 

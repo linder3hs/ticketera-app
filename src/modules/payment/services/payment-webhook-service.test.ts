@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  notifyOrderAutoRefunded,
+  notifyOrderPaid,
+  notifyPaymentFailed,
+} from "@/modules/email/services/notification-service";
+import {
   WebhookSignatureError,
   type OrderStatus,
   type PaymentWebhookEvent,
@@ -31,6 +36,11 @@ vi.mock("@/modules/payment/services/stripe-event-service", () => ({
   markStripeEventProcessed: vi.fn(),
 }));
 vi.mock("@/modules/refund/services/refund-service", () => ({ confirmRefund: vi.fn() }));
+vi.mock("@/modules/email/services/notification-service", () => ({
+  notifyOrderAutoRefunded: vi.fn(),
+  notifyOrderPaid: vi.fn(),
+  notifyPaymentFailed: vi.fn(),
+}));
 // The real gateway pulls in the Stripe SDK; tests inject a fake instead.
 vi.mock("@/modules/payment/services/stripe-payment-gateway", () => ({ stripePaymentGateway: {} }));
 
@@ -167,7 +177,7 @@ describe("handlePaymentWebhook: verification and ignored events", () => {
     expectNoDataAccess();
   });
 
-  it("only logs a failed payment: the order stays pending for the retry (D9)", async () => {
+  it("logs a failed payment and emails the buyer: the order stays pending for the retry (D9)", async () => {
     gateway.parseWebhook.mockReturnValue({
       id: "evt_3",
       type: "payment_intent.payment_failed",
@@ -177,6 +187,7 @@ describe("handlePaymentWebhook: verification and ignored events", () => {
 
     expect(await deliver()).toEqual({ status: 200 });
     expect(console.info).toHaveBeenCalledWith(expect.stringContaining("[stripe]"), "evt_3", "pi_1");
+    expect(notifyPaymentFailed).toHaveBeenCalledWith("pi_1");
     expectNoDataAccess();
   });
 
@@ -216,6 +227,7 @@ describe("handlePaymentWebhook: conversion", () => {
     expect(input.tickets.map((ticket) => ticket.orderItemId)).toEqual(ITEMS);
     expect(input.tickets.every((ticket) => ticket.eventId === "event-1" && ticket.holderName === BUYER)).toBe(true);
     expect(new Set(input.tickets.map((ticket) => ticket.code)).size).toBe(ITEMS.length);
+    expect(notifyOrderPaid).toHaveBeenCalledWith("order-1");
     expect(markStripeEventProcessed).not.toHaveBeenCalled();
     expect(gateway.refundPayment).not.toHaveBeenCalled();
   });
@@ -227,6 +239,7 @@ describe("handlePaymentWebhook: conversion", () => {
     expect(await deliver()).toEqual({ status: 200 });
 
     expect(fulfillOrder).toHaveBeenCalledTimes(1);
+    expect(notifyOrderPaid).toHaveBeenCalledTimes(1);
     expect(store.issued.map((ticket) => ticket.orderItemId)).toEqual(ITEMS);
     expect(store.processed).toEqual(new Set(["evt_1"]));
     expect(gateway.refundPayment).not.toHaveBeenCalled();
@@ -256,6 +269,7 @@ describe("handlePaymentWebhook: conversion", () => {
     expect(await deliver()).toEqual({ status: 200 });
     expect(markStripeEventProcessed).toHaveBeenCalledWith("evt_2", SUCCEEDED);
     expect(fulfillOrder).not.toHaveBeenCalled();
+    expect(notifyOrderPaid).not.toHaveBeenCalled();
     expect(gateway.refundPayment).not.toHaveBeenCalled();
   });
 });
@@ -271,12 +285,16 @@ describe("handlePaymentWebhook: lost hold (refund)", () => {
     vi.mocked(cancelRefundedOrder).mockImplementation(async () => {
       steps.push("cancel");
     });
+    vi.mocked(notifyOrderAutoRefunded).mockImplementation(async () => {
+      steps.push("email");
+    });
     vi.mocked(markStripeEventProcessed).mockImplementation(async () => {
       steps.push("record");
     });
 
     expect(await deliver()).toEqual({ status: 200 });
-    expect(steps).toEqual(["refund", "cancel", "record"]);
+    expect(steps).toEqual(["refund", "cancel", "email", "record"]);
+    expect(notifyOrderAutoRefunded).toHaveBeenCalledWith("order-1");
     expectRefundedAndRecorded();
     expect(fulfillOrder).not.toHaveBeenCalled();
     expect(loggedText()).not.toContain(BUYER);

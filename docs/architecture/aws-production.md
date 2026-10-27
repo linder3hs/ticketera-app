@@ -133,6 +133,8 @@ El concurrency group `deploy-main` evita dos deploys a la vez.
 | `NEXT_PUBLIC_*` (Clerk, Stripe) | Parameter Store (String) y variables de GitHub | Los de GitHub se usan al construir la imagen |
 | `APP_URL`, `SUPER_ADMIN_EMAIL`, `STRIPE_CONNECT_ACCOUNT_COUNTRY`, `STRIPE_CONNECT_ACCOUNT_CURRENCY` | Parameter Store (String) | |
 | `GOOGLE_MAPS_API_KEY` | No se usa | Sin clave, la UI no muestra mapa |
+| `RESEND_API_KEY` | Parameter Store (SecureString) | **`PENDING`**. Sin ella no se envía ningún correo: cada envío solo deja `[email] not sent … RESEND_API_KEY is not set.` en el log y el flujo sigue |
+| `RESEND_FROM_EMAIL` | Parameter Store (String) | `no-reply@ticketera.delabpe.com` (dominio verificado en Resend). Los enlaces de los correos salen de `APP_URL` |
 | `AWS_REGION`, `S3_COVERS_BUCKET`, `COVERS_BASE_URL` | Parameter Store (String) | Subida de portadas. `COVERS_BASE_URL` = `https://d35ycaybluucd9.cloudfront.net/covers`, también en local (el bucket no tiene otro origen público). En local además `AWS_PROFILE=ticketera`; en la EC2 el SDK usa el rol de la instancia (IMDSv2, hop limit 2, alcanza al contenedor) |
 
 Para cargar un secreto de webhook (no pasa por el chat):

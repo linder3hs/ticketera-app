@@ -42,6 +42,7 @@ import {
   getZoneStates,
   seatedOccupancy,
 } from "@/modules/event/services/event-facts-service";
+import { notifyEventPublished } from "@/modules/email/services/notification-service";
 import type { DispatchResult } from "@/modules/refund/refund.types";
 import { canRetryEventRefunds } from "@/modules/refund/refund.utils";
 import { cancelEventAndRefund, retryEventRefunds as retryRefunds } from "@/modules/refund/services/refund-service";
@@ -551,8 +552,9 @@ export async function setEventStatus(
     }
 
     const updated = await compareAndSet;
-    if (updated.length === 1) return { ok: true, data: undefined };
-    return fail(MESSAGES.salesChanged);
+    if (updated.length !== 1) return fail(MESSAGES.salesChanged);
+    if (status === "published" && actor.organizerId !== stored.organizerId) await notifyEventPublished(eventId);
+    return { ok: true, data: undefined };
   } catch (error) {
     return failed("setEventStatus", error);
   }

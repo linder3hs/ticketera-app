@@ -1,4 +1,4 @@
-import { and, count, desc, eq, ilike, isNull, or } from "drizzle-orm";
+import { and, count, desc, eq, ilike, isNull, ne, or } from "drizzle-orm";
 
 import { db } from "@/db";
 import { organizer, user } from "@/db/schema";
@@ -47,6 +47,18 @@ export async function findOrganizerByUserId(userId: string): Promise<
     })
     .from(organizer)
     .where(eq(organizer.userId, userId));
+  return row;
+}
+
+/** The user behind a connected account and the account's stored onboarding status, if any organizer has it. */
+export async function findStripeAccountOwner(accountId: string): Promise<
+  { email: string; fullName: string | null; stripeOnboardingStatus: StripeOnboardingStatus } | undefined
+> {
+  const [row] = await db
+    .select({ email: user.email, fullName: user.fullName, stripeOnboardingStatus: organizer.stripeOnboardingStatus })
+    .from(organizer)
+    .innerJoin(user, eq(user.id, organizer.userId))
+    .where(eq(organizer.stripeAccountId, accountId));
   return row;
 }
 
@@ -152,8 +164,14 @@ export async function upsertOrganizer(
     : insert.onConflictDoNothing());
 }
 
-export async function setOrganizerStatus(userId: string, status: OrganizerStatus): Promise<void> {
-  await db.update(organizer).set({ status }).where(eq(organizer.userId, userId));
+/** `true` when the status actually changed (an unchanged one writes nothing). */
+export async function setOrganizerStatus(userId: string, status: OrganizerStatus): Promise<boolean> {
+  const rows = await db
+    .update(organizer)
+    .set({ status })
+    .where(and(eq(organizer.userId, userId), ne(organizer.status, status)))
+    .returning({ id: organizer.id });
+  return rows.length > 0;
 }
 
 /** Saves the tax data of the user's organizer profile. `false` when the user has no organizer row. */

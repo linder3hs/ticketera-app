@@ -1,24 +1,12 @@
 import Stripe from "stripe";
 
+import { getAppUrl, requireEnv } from "@/lib/env";
 import {
   WebhookSignatureError,
   type ConnectGateway,
   type TransfersStatus,
 } from "@/modules/payment/payment.types";
 import { getStripeClient } from "@/modules/payment/services/stripe-client";
-
-function requireEnv(name: string): string {
-  const value = process.env[name];
-  if (!value) throw new Error(`${name} is not set.`);
-  return value;
-}
-
-/** Public base URL for the return/refresh links of the hosted onboarding. */
-function appUrl(): string {
-  const url = process.env.APP_URL ?? (process.env.NODE_ENV === "production" ? undefined : "http://localhost:3000");
-  if (!url) throw new Error("APP_URL is not set.");
-  return url;
-}
 
 /** Id of the account an event is about; singleton related objects carry none. */
 function relatedAccountId(notification: object): string | null {
@@ -53,7 +41,7 @@ export const stripeConnectGateway: ConnectGateway = {
   },
 
   async createOnboardingLink(accountId) {
-    const base = appUrl();
+    const base = getAppUrl();
     const link = await getStripeClient().v2.core.accountLinks.create({
       account: accountId,
       use_case: {

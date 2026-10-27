@@ -39,8 +39,8 @@ const orderColumns = {
 };
 
 /**
- * One row per ticket of the user's orders that match `condition`, newest paid order first and each
- * order's tickets by zone and seat. Callers always include `orders.user_id` in `condition`.
+ * One row per ticket of the orders that match `condition`, newest paid order first and each order's
+ * tickets by zone and seat. User-facing callers always include `orders.user_id` in `condition`.
  */
 function selectTicketRows(condition: SQL | undefined): Promise<OrderTicketRow[]> {
   return db
@@ -84,16 +84,34 @@ export function findTicketRows(userId: string, code: string): Promise<OrderTicke
   return selectTicketRows(and(eq(orders.userId, userId), eq(orders.code, code)));
 }
 
-/** The user's order with that code on its own (for one that has no tickets yet); `null` if it doesn't exist or isn't theirs. */
-export async function findOrderRow(userId: string, code: string): Promise<OrderTicketRow | null> {
+/** The order matching `condition` on its own, with no ticket columns; `null` if none. */
+async function selectOrderRow(condition: SQL): Promise<OrderTicketRow | null> {
   const [row] = await db
     .select(orderColumns)
     .from(orders)
     .innerJoin(event, eq(event.id, orders.eventId))
     .innerJoin(venue, eq(venue.id, event.venueId))
     .innerJoin(category, eq(category.id, event.categoryId))
-    .where(and(eq(orders.userId, userId), eq(orders.code, code)))
+    .where(condition)
     .limit(1);
   if (!row) return null;
   return { ...row, ticketId: null, ticketCode: null, ticketStatus: null, holderName: null, zoneName: null, seatRow: null, seatNumber: null };
+}
+
+/** The user's order with that code on its own (for one that has no tickets yet); `null` if it doesn't exist or isn't theirs. */
+export function findOrderRow(userId: string, code: string): Promise<OrderTicketRow | null> {
+  return selectOrderRow(and(eq(orders.userId, userId), eq(orders.code, code)) as SQL);
+}
+
+/**
+ * Server-side only, NOT scoped to a user: one row per ticket of the order. For the buyer emails sent from
+ * webhooks and staff actions, never for anything a request parameter can reach.
+ */
+export function findTicketRowsByOrderId(orderId: string): Promise<OrderTicketRow[]> {
+  return selectTicketRows(eq(orders.id, orderId));
+}
+
+/** Server-side only, NOT scoped to a user (see `findTicketRowsByOrderId`): the order on its own. */
+export function findOrderRowById(orderId: string): Promise<OrderTicketRow | null> {
+  return selectOrderRow(eq(orders.id, orderId));
 }

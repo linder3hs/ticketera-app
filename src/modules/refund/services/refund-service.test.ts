@@ -1,6 +1,11 @@
 import type { BatchItem } from "drizzle-orm/batch";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import {
+  notifyEventCancelled,
+  notifyRefundFinished,
+  notifyRefundsPending,
+} from "@/modules/email/services/notification-service";
 import { hasProcessedStripeEvent, markStripeEventProcessed } from "@/modules/payment/services/stripe-event-service";
 import type { DispatchableRefund, RefundWebhookEvent, WebhookRefundRow } from "@/modules/refund/refund.types";
 import {
@@ -34,6 +39,11 @@ vi.mock("@/modules/payment/services/stripe-event-service", () => ({
 }));
 // The real gateway pulls in the Stripe SDK; tests inject a fake instead.
 vi.mock("@/modules/payment/services/stripe-payment-gateway", () => ({ stripePaymentGateway: {} }));
+vi.mock("@/modules/email/services/notification-service", () => ({
+  notifyEventCancelled: vi.fn(),
+  notifyRefundFinished: vi.fn(),
+  notifyRefundsPending: vi.fn(),
+}));
 
 const EVENT_ID = "event-1";
 const USER_ID = "user-1";
@@ -185,12 +195,15 @@ describe("cancelEventAndRefund", () => {
     expect(result).toEqual({ ok: true, dispatch: { dispatched: 1, failed: 0, pending: 0 } });
     expect(cancelEventBatch).toHaveBeenCalledTimes(1);
     expect(cancelEventBatch).toHaveBeenCalledWith(cas, EVENT_ID, USER_ID);
+    expect(notifyEventCancelled).toHaveBeenCalledWith(EVENT_ID);
+    expect(notifyRefundsPending).not.toHaveBeenCalled();
   });
 
   it("propagates that the compare-and-set affected no row, without calling Stripe", async () => {
     vi.mocked(cancelEventBatch).mockResolvedValue(false);
 
     expect(await cancelEventAndRefund(cas, EVENT_ID, USER_ID, gateway)).toEqual({ ok: false });
+    expect(notifyEventCancelled).not.toHaveBeenCalled();
     expect(listDispatchableRefunds).not.toHaveBeenCalled();
     expect(gateway.refundPayment).not.toHaveBeenCalled();
   });
@@ -204,6 +217,7 @@ describe("cancelEventAndRefund", () => {
       ok: true,
       dispatch: { dispatched: 0, failed: 1, pending: 1 },
     });
+    expect(notifyRefundsPending).toHaveBeenCalledWith(EVENT_ID, 1);
   });
 
   it("stays ok when the dispatch itself blows up after the batch committed", async () => {
@@ -211,6 +225,7 @@ describe("cancelEventAndRefund", () => {
     vi.mocked(listDispatchableRefunds).mockRejectedValue(new Error("db down"));
 
     expect(await cancelEventAndRefund(cas, EVENT_ID, USER_ID, gateway)).toEqual({ ok: true, dispatch: null });
+    expect(notifyEventCancelled).toHaveBeenCalledWith(EVENT_ID);
   });
 
   it("lets a failing batch propagate (nothing was cancelled)", async () => {
@@ -255,6 +270,7 @@ describe("confirmRefund", () => {
       stripeRefundId: "re_1",
       status,
     });
+    expect(notifyRefundFinished).toHaveBeenCalledWith("order-1", "r-1");
   });
 
   it("handles refund.created and refund.failed the same way (the status decides)", async () => {
@@ -270,6 +286,7 @@ describe("confirmRefund", () => {
 
     expect(findRefundForWebhook).not.toHaveBeenCalled();
     expect(finalizeRefundBatch).not.toHaveBeenCalled();
+    expect(notifyRefundFinished).not.toHaveBeenCalled();
   });
 
   it("finds a refund the webhook beat to storing its Stripe id by metadata and stores the id", async () => {
@@ -289,6 +306,8 @@ describe("confirmRefund", () => {
     expect(console.warn).toHaveBeenCalledWith(expect.any(String), "evt_1", "re_1");
     expect(markStripeEventProcessed).toHaveBeenCalledWith("evt_1", "refund.updated");
     expect(finalizeRefundBatch).not.toHaveBeenCalled();
+    // The `settle` refund already emailed the buyer from the payments webhook.
+    expect(notifyRefundFinished).not.toHaveBeenCalled();
   });
 
   it.each(["succeeded", "failed", "canceled"] as const)("never moves a refund that is already %s", async (status) => {
@@ -319,6 +338,7 @@ describe("confirmRefund", () => {
 
     await expect(confirmRefund(webhookEvent("succeeded"))).resolves.toBeUndefined();
     expect(hasProcessedStripeEvent).toHaveBeenCalledWith("evt_1");
+    expect(notifyRefundFinished).not.toHaveBeenCalled();
   });
 
   it("rethrows a 23505 when the event was not recorded (another unique clash)", async () => {
