@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { recordAudit } from "@/modules/audit/services/audit-log-service";
+import { notifyImpersonationStarted } from "@/modules/email/services/notification-service";
 import { getImpersonation, requireRole } from "@/modules/user/current-user";
 import { findUserById } from "@/modules/user/services/user-service";
 import { IMPERSONATION_COOKIE, IMPERSONATION_MAX_AGE_SECONDS } from "@/modules/user/user.impersonation";
@@ -33,6 +34,7 @@ export async function startImpersonationAction(input: unknown): Promise<ActionRe
     maxAge: IMPERSONATION_MAX_AGE_SECONDS,
   });
   await recordAudit({ action: "impersonation.start", targetType: "user", targetId: target.id });
+  await notifyImpersonationStarted(target);
   redirect(target.role === "organizer" ? "/organizer" : "/");
 }
 

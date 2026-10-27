@@ -1,6 +1,11 @@
 import type { BatchItem } from "drizzle-orm/batch";
 
 import { pgErrorCode } from "@/lib/pg-error";
+import {
+  notifyEventCancelled,
+  notifyRefundFinished,
+  notifyRefundsPending,
+} from "@/modules/email/services/notification-service";
 import type { PaymentWebhookGateway } from "@/modules/payment/payment.types";
 import { hasProcessedStripeEvent, markStripeEventProcessed } from "@/modules/payment/services/stripe-event-service";
 import { stripePaymentGateway } from "@/modules/payment/services/stripe-payment-gateway";
@@ -57,6 +62,8 @@ export async function dispatchEventRefunds(
       result.pending += 1;
     }
   }
+  // Stripe rejections only (usually no balance on the connected account); `charge_already_refunded` needs no action from them.
+  if (result.failed > 0) await notifyRefundsPending(eventId, result.failed);
   return result;
 }
 
@@ -73,12 +80,14 @@ export async function cancelEventAndRefund(
 ): Promise<CancelEventResult> {
   if (!(await cancelEventBatch(casStatement, eventId, requestedBy))) return { ok: false };
 
+  let dispatch: DispatchResult | null = null;
   try {
-    return { ok: true, dispatch: await dispatchEventRefunds(eventId, gateway) };
+    dispatch = await dispatchEventRefunds(eventId, gateway);
   } catch (error) {
     console.error("[refund] dispatch failed", eventId, errorMessage(error));
-    return { ok: true, dispatch: null };
   }
+  await notifyEventCancelled(eventId);
+  return { ok: true, dispatch };
 }
 
 /**
@@ -129,4 +138,5 @@ export async function confirmRefund(event: RefundWebhookEvent): Promise<void> {
     if (pgErrorCode(error) === UNIQUE_VIOLATION && (await hasProcessedStripeEvent(event.id))) return;
     throw error;
   }
+  await notifyRefundFinished(row.orderId, row.id);
 }

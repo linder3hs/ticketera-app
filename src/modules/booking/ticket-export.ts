@@ -90,12 +90,13 @@ function pdfText(text: string) {
 }
 
 /**
- * A PDF with one ticket per page. `jspdf` is loaded on demand so it isn't
- * part of the page bundle.
+ * A PDF with one valid ticket per page, or `null` when none is valid. `jspdf`
+ * is loaded on demand so it isn't part of the page bundle; it also runs on the
+ * server (the order email attaches it).
  */
-export async function downloadTicketsPdf(event: ExportEvent, order: MyOrder) {
+export async function buildTicketsPdf(event: ExportEvent, order: MyOrder): Promise<ArrayBuffer | null> {
   const tickets = getValidTickets(order);
-  if (tickets.length === 0) return;
+  if (tickets.length === 0) return null;
 
   const { jsPDF } = await import("jspdf");
   const doc = new jsPDF({ unit: "mm", format: "a5" });
@@ -184,5 +185,10 @@ export async function downloadTicketsPdf(event: ExportEvent, order: MyOrder) {
     });
   });
 
-  doc.save(`entradas-${order.code}.pdf`);
+  return doc.output("arraybuffer");
+}
+
+export async function downloadTicketsPdf(event: ExportEvent, order: MyOrder) {
+  const pdf = await buildTicketsPdf(event, order);
+  if (pdf) downloadFile(`entradas-${order.code}.pdf`, pdf, "application/pdf");
 }

@@ -1,3 +1,4 @@
+import { notifyOrganizerStatus, notifyRoleChanged } from "@/modules/email/services/notification-service";
 import { deleteClerkUser, inviteToClerk, syncRoleToClerk } from "@/modules/user/services/clerk-service";
 import {
   findUserByEmail,
@@ -23,6 +24,7 @@ export async function changeUserRole(actor: UserRecord, userId: string, role: Ro
 
   await setUserRole(target, role);
   await syncRoleToClerk(target.clerkId, role);
+  await notifyRoleChanged(target, role);
   return { ok: true, message: "Rol actualizado." };
 }
 
@@ -37,7 +39,7 @@ export async function changeOrganizerStatus(
   const target = await findUserById(userId);
   if (target?.role !== "organizer") return { ok: false, error: "El usuario no es organizador." };
 
-  await saveOrganizerStatus(userId, status);
+  if (await saveOrganizerStatus(userId, status)) await notifyOrganizerStatus(target, status);
   return { ok: true, message: status === "approved" ? "Organizador aprobado." : "Organizador suspendido." };
 }
 

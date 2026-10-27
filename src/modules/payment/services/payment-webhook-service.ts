@@ -1,5 +1,10 @@
 import { pgErrorCode } from "@/lib/pg-error";
 import {
+  notifyOrderAutoRefunded,
+  notifyOrderPaid,
+  notifyPaymentFailed,
+} from "@/modules/email/services/notification-service";
+import {
   WebhookSignatureError,
   type PaymentWebhookEvent,
   type PaymentWebhookGateway,
@@ -57,6 +62,7 @@ export async function handlePaymentWebhook(
     if (event.type === PAYMENT_EVENT_TYPES.failed) {
       // Not terminal: the buyer retries on the same PaymentIntent, so the order stays `pending`.
       console.info("[stripe] payment failed", event.id, event.paymentIntentId);
+      if (event.paymentIntentId) await notifyPaymentFailed(event.paymentIntentId);
       return { status: 200 };
     }
     if (REFUND_EVENT_TYPES.has(event.type)) {
@@ -111,6 +117,7 @@ async function fulfill(event: SucceededPaymentEvent, context: PaymentContext): P
     chargeId: event.chargeId,
     tickets: toNewTickets(context.orderItemIds, context.eventId, context.buyerName),
   });
+  await notifyOrderPaid(context.orderId);
 }
 
 /** D7: after a classified abort, reread once and re-route; anything else is rethrown (500). */
@@ -147,6 +154,7 @@ async function settle(
     const { refundId } = await gateway.refundPayment(event.paymentIntentId, `refund:${context.orderId}`);
     await cancelRefundedOrder({ paymentId: context.paymentId, orderId: context.orderId, chargeId: event.chargeId });
     console.warn("[stripe] charge refunded, order cancelled", context.orderId, refundId);
+    await notifyOrderAutoRefunded(context.orderId);
   }
   await markStripeEventProcessed(event.id, event.type);
 }

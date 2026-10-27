@@ -1,8 +1,10 @@
+import { notifyConnectStatus } from "@/modules/email/services/notification-service";
 import type { ConnectGateway, ConnectLinkResult } from "@/modules/payment/payment.types";
 import { mapTransfersStatus } from "@/modules/payment/payment.utils";
 import { stripeConnectGateway } from "@/modules/payment/services/stripe-connect-gateway";
 import {
   findOrganizerByUserId,
+  findStripeAccountOwner,
   setStripeAccountId,
   setStripeOnboardingStatus,
 } from "@/modules/user/services/user-service";
@@ -62,6 +64,7 @@ export async function startConnectOnboarding(
  * Reads the account from the provider and stores the resulting onboarding status. Always uses the
  * retrieved state, so repeated or out-of-order events can't leave a stale value.
  * Returns the stored status, or `null` when no organizer owns `accountId`.
+ * Emails the organizer when payouts turn on, or when a complete account goes back to pending.
  */
 export async function syncConnectStatus(
   accountId: string,
@@ -71,7 +74,12 @@ export async function syncConnectStatus(
   if (transfers === "rejected") console.error("[connect] account rejected", { accountId });
 
   const status = mapTransfersStatus(transfers);
+  const owner = await findStripeAccountOwner(accountId);
   const found = await setStripeOnboardingStatus(accountId, status);
+  const previous = owner?.stripeOnboardingStatus;
+  if (found && owner && previous !== status && (status === "complete" || previous === "complete")) {
+    await notifyConnectStatus(accountId, owner, status === "complete" ? "complete" : "pending");
+  }
   return found ? status : null;
 }
 

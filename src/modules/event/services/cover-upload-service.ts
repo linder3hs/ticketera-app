@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { S3Client } from "@aws-sdk/client-s3";
 import { createPresignedPost } from "@aws-sdk/s3-presigned-post";
 
+import { requireEnv } from "@/lib/env";
 import { COVER_MAX_BYTES, type COVER_CONTENT_TYPES } from "@/modules/event/event-write.schema";
 import type { CoverUpload } from "@/modules/event/event-write.types";
 
@@ -13,12 +14,6 @@ const EXTENSIONS: Record<CoverContentType, string> = { "image/jpeg": "jpg", "ima
 const UPLOAD_TTL_SECONDS = 300;
 
 let client: S3Client | undefined;
-
-function requireEnv(name: string): string {
-  const value = process.env[name];
-  if (!value) throw new Error(`${name} is not set.`);
-  return value;
-}
 
 /**
  * Presigned POST for a new cover at `covers/<uuid>.<ext>`: S3 itself rejects
